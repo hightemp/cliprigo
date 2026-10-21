@@ -2,6 +2,7 @@ mod commands;
 mod components;
 mod db;
 mod error;
+mod net_env;
 mod process;
 mod queue;
 mod thumbs;
@@ -99,6 +100,7 @@ fn init_logging(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    net_env::bypass_proxy_for_localhost();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())

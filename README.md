@@ -20,8 +20,8 @@ pnpm ui:preview     # UI-сценарии в headless Chrome со скриншо
 Rust-тесты: `cargo test` в `src-tauri`. Сквозные тесты с настоящим YouTube запускаются отдельно:
 `cargo test live_ -- --ignored --test-threads=1`.
 
-Если в окружении задан `HTTP_PROXY`, добавьте `NO_PROXY=localhost,127.0.0.1`, иначе окно
-`tauri dev` будет запрашивать dev-сервер через прокси.
+Если в окружении задан `HTTP_PROXY`, приложение само добавляет `localhost`, `127.0.0.1` и `::1`
+в `NO_PROXY` при запуске (`src-tauri/src/net_env.rs`), так что `tauri dev` работает без настройки.
 
 ## Запуск неподписанной сборки
 
