@@ -527,6 +527,70 @@ const scenarios = [
     },
     noFinalShot: true,
   },
+  {
+    name: "12-video-card-en",
+    theme: "dark",
+    responses: ready("en", { video_probe: VIDEO }),
+    async run(page, check) {
+      await page.fill("input[type=url]", VIDEO.url);
+      await page.keyboard.press("Enter");
+      await check.text(VIDEO.title);
+      await check.text("Audio only");
+    },
+  },
+  {
+    name: "13-history-en",
+    theme: "light",
+    responses: ready("en", {
+      queue_list: [
+        {
+          ...record(1, {
+            title: "Street food tour of the old town",
+            status: "downloading",
+          }),
+          progress: progress(57),
+        },
+      ],
+      history_list: [
+        {
+          ...record(11, {
+            title: VIDEO.title,
+            status: "completed",
+            filePath: "/d/a.mp4",
+            fileSize: 1.2e9,
+            completedAt: NOW,
+          }),
+          fileExists: true,
+        },
+        {
+          ...record(12, {
+            title: "Morning jazz for focus",
+            format: "audio_mp3",
+            status: "completed",
+            filePath: "/d/b.mp3",
+            fileSize: 8.4e6,
+            completedAt: NOW - 86400,
+          }),
+          fileExists: true,
+        },
+        {
+          ...record(13, {
+            title: "Five-minute garlic noodles",
+            status: "completed",
+            filePath: "/d/c.mp4",
+            fileSize: 96e6,
+            completedAt: NOW - 2 * 86400,
+          }),
+          fileExists: false,
+        },
+      ],
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "History" }).click();
+      await check.text("File not found");
+      await check.text("Morning jazz for focus");
+    },
+  },
 ];
 
 // ---------- runner ----------
