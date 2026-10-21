@@ -1,4 +1,4 @@
-mod fetch;
+pub(crate) mod fetch;
 mod fsutil;
 mod platform;
 

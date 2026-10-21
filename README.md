@@ -13,8 +13,15 @@
 pnpm install
 pnpm tauri dev      # запуск в режиме разработки
 pnpm tauri build    # сборка установщика
-pnpm lint           # prettier + svelte-check
+pnpm lint           # prettier + svelte-check + vitest
+pnpm ui:preview     # UI-сценарии в headless Chrome со скриншотами (нужен Google Chrome)
 ```
+
+Rust-тесты: `cargo test` в `src-tauri`. Сквозные тесты с настоящим YouTube запускаются отдельно:
+`cargo test live_ -- --ignored --test-threads=1`.
+
+Если в окружении задан `HTTP_PROXY`, добавьте `NO_PROXY=localhost,127.0.0.1`, иначе окно
+`tauri dev` будет запрашивать dev-сервер через прокси.
 
 ## Запуск неподписанной сборки
 

@@ -4,6 +4,7 @@ mod db;
 mod error;
 mod process;
 mod queue;
+mod thumbs;
 mod ytdlp;
 
 use std::sync::Arc;
@@ -101,6 +102,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             init_logging(app)?;
             tracing::info!(version = env!("CARGO_PKG_VERSION"), "Cliprigo started");
@@ -116,6 +118,9 @@ pub fn run() {
             let components = Arc::new(ComponentManager::new(data_dir.join("bin"))?);
             app.manage(components.clone());
             app.manage(create_queue(app.handle(), db, components));
+            app.manage(thumbs::ThumbCache::new(
+                app.path().app_cache_dir()?.join("thumbs"),
+            )?);
             tauri::async_runtime::spawn(auto_update(app.handle().clone()));
             Ok(())
         })
@@ -131,6 +136,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::history_list,
             commands::history_delete,
+            commands::history_open,
+            commands::history_reveal,
+            commands::open_logs,
             commands::settings_get,
             commands::settings_set,
             commands::components_status,
@@ -138,6 +146,7 @@ pub fn run() {
             commands::components_check_updates,
             commands::video_probe,
             commands::url_inspect,
+            commands::thumbnail_cached,
             commands::queue_add,
             commands::queue_cancel,
             commands::queue_retry,

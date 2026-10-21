@@ -17,6 +17,8 @@ pub enum AppError {
     Checksum(String),
     #[error("unsupported platform: {0}")]
     UnsupportedPlatform(String),
+    #[error("file not found: {0}")]
+    FileMissing(String),
     #[error("component not installed: {0}")]
     ComponentsMissing(String),
     #[error("{message}")]
@@ -40,6 +42,7 @@ impl AppError {
             Self::Checksum(_) => "checksum",
             Self::UnsupportedPlatform(_) => "unsupported_platform",
             Self::ComponentsMissing(_) => "components_missing",
+            Self::FileMissing(_) => "file_missing",
             Self::Ytdlp { kind, .. } => kind.code(),
             Self::Other(_) => "other",
         }

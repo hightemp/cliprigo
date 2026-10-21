@@ -3,7 +3,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_opener::OpenerExt;
 
 use crate::components::{Component, ComponentManager, ComponentStatus, Progress, UpdateInfo};
 use crate::db::{Db, DownloadRecord, HistoryQuery, Settings};
@@ -175,4 +176,108 @@ pub fn url_inspect(url: String) -> UrlInfo {
         is_youtube: ytdlp::url::is_youtube(&url),
         single_video: ytdlp::url::is_single_video(&url),
     }
+}
+
+/// The downloaded file of a history record, if it is still on disk.
+fn existing_file(record: &DownloadRecord) -> AppResult<std::path::PathBuf> {
+    let path = record
+        .file_path
+        .as_deref()
+        .map(std::path::PathBuf::from)
+        .ok_or_else(|| AppError::FileMissing(format!("download {}", record.id)))?;
+    if path.is_file() {
+        Ok(path)
+    } else {
+        Err(AppError::FileMissing(path.to_string_lossy().into_owned()))
+    }
+}
+
+fn history_file(db: &Db, id: i64) -> AppResult<std::path::PathBuf> {
+    let record = db
+        .get_download(id)?
+        .ok_or_else(|| AppError::Other(format!("download {id} not found")))?;
+    existing_file(&record)
+}
+
+// Opening goes through the backend with a record id, so the UI can only open files
+// that Cliprigo itself downloaded instead of arbitrary paths.
+
+#[tauri::command]
+pub fn history_open(app: AppHandle, db: State<'_, Db>, id: i64) -> AppResult<()> {
+    let path = history_file(&db, id)?;
+    app.opener()
+        .open_path(path.to_string_lossy(), None::<&str>)
+        .map_err(|e| AppError::Other(e.to_string()))
+}
+
+#[tauri::command]
+pub fn history_reveal(app: AppHandle, db: State<'_, Db>, id: i64) -> AppResult<()> {
+    let path = history_file(&db, id)?;
+    app.opener()
+        .reveal_item_in_dir(path)
+        .map_err(|e| AppError::Other(e.to_string()))
+}
+
+#[tauri::command]
+pub fn open_logs(app: AppHandle) -> AppResult<()> {
+    let dir = app
+        .path()
+        .app_log_dir()
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    app.opener()
+        .open_path(dir.to_string_lossy(), None::<&str>)
+        .map_err(|e| AppError::Other(e.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::{DownloadStatus, NewDownload};
+
+    fn record_with(path: Option<&str>) -> DownloadRecord {
+        let db = Db::open_in_memory().unwrap();
+        let r = db
+            .insert_download(&NewDownload {
+                url: "u".into(),
+                format: "video".into(),
+                ..Default::default()
+            })
+            .unwrap();
+        if let Some(p) = path {
+            db.set_result(r.id, p, None).unwrap();
+            db.set_status(r.id, DownloadStatus::Completed, None)
+                .unwrap();
+        }
+        db.get_download(r.id).unwrap().unwrap()
+    }
+
+    #[test]
+    fn existing_file_requires_a_file_on_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("v.mp4");
+        std::fs::write(&file, b"x").unwrap();
+
+        assert_eq!(
+            existing_file(&record_with(Some(file.to_str().unwrap()))).unwrap(),
+            file
+        );
+        for record in [
+            record_with(None),
+            record_with(Some(dir.path().join("gone.mp4").to_str().unwrap())),
+            // A directory is not a downloaded file.
+            record_with(Some(dir.path().to_str().unwrap())),
+        ] {
+            let err = existing_file(&record).unwrap_err();
+            assert_eq!(err.code(), "file_missing");
+        }
+    }
+}
+
+/// Local copy of a video thumbnail (YouTube image hosts only).
+#[tauri::command]
+pub async fn thumbnail_cached(
+    cache: State<'_, crate::thumbs::ThumbCache>,
+    url: String,
+) -> AppResult<String> {
+    Ok(cache.get(&url).await?.to_string_lossy().into_owned())
 }

@@ -12,3 +12,6 @@ vite.config.ts.timestamp-*
 # Rust / Tauri
 src-tauri/target
 src-tauri/gen/schemas
+
+# UI preview screenshots
+/ui-preview

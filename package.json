@@ -12,11 +12,14 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri",
     "format": "prettier --write .",
-    "lint": "prettier --check . && pnpm check"
+    "lint": "prettier --check . && pnpm check && pnpm test",
+    "test": "vitest run",
+    "ui:preview": "node scripts/ui-preview.mjs"
   },
   "license": "MIT",
   "dependencies": {
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-clipboard-manager": "^2.5.0",
     "@tauri-apps/plugin-dialog": "^2.8.3",
     "@tauri-apps/plugin-opener": "^2"
   },
@@ -25,11 +28,13 @@
     "@sveltejs/kit": "^2.65.1",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tauri-apps/cli": "^2",
+    "playwright-core": "^1.64.1",
     "prettier": "^3.9.10",
     "prettier-plugin-svelte": "^4.1.1",
     "svelte": "^5.56.3",
     "svelte-check": "^4.6.0",
     "typescript": "~6.0.3",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^5.0.5"
   }
 }
