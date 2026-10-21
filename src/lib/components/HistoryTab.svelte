@@ -5,7 +5,7 @@
   import { errorMessage, parseStoredError } from "$lib/errors";
   import { formatBytes, formatDate, formatDuration } from "$lib/format";
   import { formatFromRecord } from "$lib/selection";
-  import { app, t, toast, toastError } from "$lib/state.svelte";
+  import { app, copyDetails, t, toast, toastError } from "$lib/state.svelte";
   import {
     ACTIVE_STATUSES,
     type DownloadStatus,
@@ -199,6 +199,20 @@
                   onclick={() => run(() => api.historyReveal(item.id), item)}
                 >
                   <Icon name="folder" size={16} />
+                </button>
+              {/if}
+              {#if item.status === "failed"}
+                <button
+                  class="icon-btn"
+                  title={t("errors.copyDetails")}
+                  aria-label={t("errors.copyDetails")}
+                  onclick={() =>
+                    copyDetails(
+                      parseStoredError(item.error),
+                      `download ${item.url} (${item.format}${item.quality ? ` ${item.quality}p` : ""})`,
+                    )}
+                >
+                  <Icon name="paste" size={16} />
                 </button>
               {/if}
               {#if ["failed", "canceled", "interrupted"].includes(item.status)}

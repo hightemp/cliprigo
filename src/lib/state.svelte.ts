@@ -1,4 +1,7 @@
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { api } from "./api";
 import { errorMessage } from "./errors";
+import { errorReport } from "./report";
 import type { Lang } from "./format";
 import { resolveLanguage, translate, type Params } from "./i18n";
 import type { QueueEntry, Settings } from "./types";
@@ -34,4 +37,17 @@ export function toast(text: string, error = false) {
 
 export function toastError(err: unknown) {
   toast(errorMessage(err, t), true);
+}
+
+/** Copies the error and a diagnostics report, for sending to the developer. */
+export async function copyDetails(err: unknown, action?: string) {
+  try {
+    const diagnostics = await api
+      .diagnostics()
+      .catch(() => "(diagnostics unavailable)");
+    await writeText(errorReport(err, diagnostics, action));
+    toast(t("errors.copied"));
+  } catch (e) {
+    toastError(e);
+  }
 }

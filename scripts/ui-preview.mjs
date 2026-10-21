@@ -62,6 +62,7 @@ const settings = (language) => ({
   filenameTemplate: "%(title)s [%(id)s].%(ext)s",
   language,
   autoUpdateYtdlp: true,
+  proxy: "",
 });
 
 const installed = [
@@ -356,12 +357,27 @@ const scenarios = [
       video_probe: {
         __error: { code: "ytdlp_unsupported", message: "Unsupported URL" },
       },
+      diagnostics: "DIAG REPORT",
     }),
     async run(page, check) {
       await page.fill("input[type=url]", "https://example.com/v");
       await page.keyboard.press("Enter");
       await check.text("doesn't look like a YouTube link");
       await check.text("This link is not supported.");
+
+      await page.getByRole("button", { name: "Copy details" }).click();
+      const copy = await check.call("plugin:clipboard-manager|write_text");
+      const text = JSON.stringify(copy.args);
+      for (const needle of [
+        "Action: probe https://example.com/v",
+        "Error code: ytdlp_unsupported",
+        "Message: Unsupported URL",
+        "DIAG REPORT",
+      ]) {
+        if (!text.includes(needle))
+          throw new Error(`clipboard lacks ${needle}: ${text}`);
+      }
+      await check.text("Details copied");
     },
   },
   {
@@ -589,6 +605,49 @@ const scenarios = [
       await page.getByRole("tab", { name: "History" }).click();
       await check.text("File not found");
       await check.text("Morning jazz for focus");
+    },
+  },
+  {
+    name: "14-proxy-saved",
+    theme: "light",
+    responses: ready("ru", {
+      settings_set: { ...settings("ru"), proxy: "http://127.0.0.1:8888" },
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Настройки" }).click();
+      const proxy = page.getByLabel("Прокси");
+      await proxy.fill("http://127.0.0.1:8888");
+      await proxy.press("Enter");
+      await proxy.blur();
+      const set = await check.call("settings_set");
+      check.equal(set.args.settings.proxy, "http://127.0.0.1:8888");
+      await check.text("Сохранено");
+    },
+  },
+  {
+    name: "15-proxy-invalid",
+    theme: "light",
+    responses: ready("ru", {
+      settings_set: {
+        __error: {
+          code: "invalid_proxy",
+          message: "invalid proxy URL: 127.0.0.1:8888",
+        },
+      },
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Настройки" }).click();
+      const proxy = page.getByLabel("Прокси");
+      await proxy.fill("127.0.0.1:8888");
+      await proxy.blur();
+      await check.text("Неверный адрес прокси");
+      // The field shows the stored value again.
+      await page.waitForFunction(() => {
+        const el = [...document.querySelectorAll("input")].find(
+          (i) => i.placeholder === "http://127.0.0.1:8888",
+        );
+        return el && el.value === "";
+      });
     },
   },
 ];

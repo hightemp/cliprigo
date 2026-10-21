@@ -10,7 +10,7 @@
     type AudioFormat,
     type Mode,
   } from "$lib/selection";
-  import { app, t, toast, toastError } from "$lib/state.svelte";
+  import { app, copyDetails, t, toast, toastError } from "$lib/state.svelte";
   import type {
     DownloadRecord,
     PlaylistEntry,
@@ -32,6 +32,9 @@
   let info = $state<UrlInfo | null>(null);
   let probing = $state(false);
   let probeError = $state<string | null>(null);
+  /** Untranslated error, for "Copy details". */
+  let probeErrorRaw: unknown = null;
+  let probedUrl = "";
   let result = $state<ProbeResult | null>(null);
   /** Existing downloads by video id. */
   let duplicates = $state<Record<string, DownloadRecord>>({});
@@ -94,7 +97,11 @@
       }
       result = probed;
     } catch (err) {
-      if (token === probeToken) probeError = errorMessage(err, t);
+      if (token === probeToken) {
+        probeError = errorMessage(err, t);
+        probeErrorRaw = err;
+        probedUrl = value;
+      }
     } finally {
       if (token === probeToken) probing = false;
     }
@@ -237,7 +244,16 @@
       <span class="muted">{t("download.probing")}</span>
     </div>
   {:else if probeError}
-    <p class="note error">{probeError}</p>
+    <div class="note error">
+      <p>{probeError}</p>
+      <button
+        class="btn small-btn"
+        onclick={() => copyDetails(probeErrorRaw, `probe ${probedUrl}`)}
+      >
+        <Icon name="paste" size={14} />
+        {t("errors.copyDetails")}
+      </button>
+    </div>
   {:else if result}
     <div class="card result">
       {#if result.type === "video"}
@@ -413,8 +429,22 @@
   }
 
   .note.error {
+    display: grid;
+    gap: 8px;
+    justify-items: start;
     background: var(--danger-soft);
     color: var(--danger);
+  }
+
+  .note.error p {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .small-btn {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 13px;
   }
 
   .status-card {

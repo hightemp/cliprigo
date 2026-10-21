@@ -17,6 +17,8 @@ pub enum AppError {
     Checksum(String),
     #[error("unsupported platform: {0}")]
     UnsupportedPlatform(String),
+    #[error("invalid proxy URL: {0}")]
+    InvalidProxy(String),
     #[error("file not found: {0}")]
     FileMissing(String),
     #[error("component not installed: {0}")]
@@ -43,6 +45,7 @@ impl AppError {
             Self::UnsupportedPlatform(_) => "unsupported_platform",
             Self::ComponentsMissing(_) => "components_missing",
             Self::FileMissing(_) => "file_missing",
+            Self::InvalidProxy(_) => "invalid_proxy",
             Self::Ytdlp { kind, .. } => kind.code(),
             Self::Other(_) => "other",
         }

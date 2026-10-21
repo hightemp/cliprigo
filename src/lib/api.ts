@@ -25,6 +25,7 @@ export const api = {
   historyOpen: (id: number) => invoke<void>("history_open", { id }),
   historyReveal: (id: number) => invoke<void>("history_reveal", { id }),
   openLogs: () => invoke<void>("open_logs"),
+  diagnostics: () => invoke<string>("diagnostics"),
 
   settingsGet: () => invoke<Settings>("settings_get"),
   settingsSet: (settings: Settings) =>

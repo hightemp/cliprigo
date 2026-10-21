@@ -71,8 +71,15 @@ pub fn settings_get(db: State<'_, Db>) -> AppResult<Settings> {
 }
 
 #[tauri::command]
-pub fn settings_set(db: State<'_, Db>, settings: Settings) -> AppResult<Settings> {
-    db.save_settings(settings)
+pub fn settings_set(
+    db: State<'_, Db>,
+    proxy: State<'_, crate::net::ProxySetting>,
+    settings: Settings,
+) -> AppResult<Settings> {
+    let saved = db.save_settings(settings)?;
+    // Applies to the next request, download or probe without a restart.
+    proxy.set(Some(saved.proxy.clone()).filter(|p| !p.is_empty()));
+    Ok(saved)
 }
 
 #[tauri::command]
@@ -280,4 +287,31 @@ pub async fn thumbnail_cached(
     url: String,
 ) -> AppResult<String> {
     Ok(cache.get(&url).await?.to_string_lossy().into_owned())
+}
+
+/// Plain-text report for bug reports: versions, components, settings, recent log.
+#[tauri::command]
+pub fn diagnostics(
+    app: AppHandle,
+    db: State<'_, Db>,
+    manager: State<'_, Arc<ComponentManager>>,
+) -> AppResult<String> {
+    const LOG_LINES: usize = 80;
+    let log_tail = app
+        .path()
+        .app_log_dir()
+        .ok()
+        .and_then(|dir| std::fs::read_to_string(dir.join("cliprigo.log")).ok())
+        .map(|log| crate::diagnostics::tail_lines(&log, LOG_LINES))
+        .unwrap_or_else(|| "(no log)".into());
+    Ok(crate::diagnostics::format_report(
+        &crate::diagnostics::DiagInfo {
+            app_version: env!("CARGO_PKG_VERSION").into(),
+            os: std::env::consts::OS.into(),
+            arch: std::env::consts::ARCH.into(),
+            components: manager.status(),
+            settings: db.load_settings()?,
+            log_tail,
+        },
+    ))
 }

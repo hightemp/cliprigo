@@ -21,6 +21,8 @@ pub struct Settings {
     /// `system`, `ru` or `en`.
     pub language: String,
     pub auto_update_ytdlp: bool,
+    /// Proxy for yt-dlp and the app's own downloads; empty uses system settings.
+    pub proxy: String,
 }
 
 impl Default for Settings {
@@ -37,6 +39,7 @@ impl Default for Settings {
             filename_template: "%(title)s [%(id)s].%(ext)s".into(),
             language: "system".into(),
             auto_update_ytdlp: true,
+            proxy: String::new(),
         }
     }
 }
@@ -87,7 +90,8 @@ impl Db {
         Ok(settings.normalized())
     }
 
-    pub fn save_settings(&self, settings: Settings) -> AppResult<Settings> {
+    pub fn save_settings(&self, mut settings: Settings) -> AppResult<Settings> {
+        settings.proxy = crate::net::validate_proxy(&settings.proxy)?.unwrap_or_default();
         let settings = settings.normalized();
         let Value::Object(map) = serde_json::to_value(&settings)? else {
             unreachable!("Settings serializes to an object");
@@ -134,6 +138,30 @@ mod tests {
             Settings::default().filename_template
         );
         assert_eq!(db.load_settings().unwrap(), saved);
+    }
+
+    #[test]
+    fn proxy_roundtrip_and_validation() {
+        let db = Db::open_in_memory().unwrap();
+        assert_eq!(db.load_settings().unwrap().proxy, "");
+        let saved = db
+            .save_settings(Settings {
+                proxy: " http://127.0.0.1:8888 ".into(),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(saved.proxy, "http://127.0.0.1:8888");
+        assert_eq!(db.load_settings().unwrap().proxy, "http://127.0.0.1:8888");
+
+        let err = db
+            .save_settings(Settings {
+                proxy: "127.0.0.1:8888".into(),
+                ..Default::default()
+            })
+            .unwrap_err();
+        assert_eq!(err.code(), "invalid_proxy");
+        // The invalid value was not stored.
+        assert_eq!(db.load_settings().unwrap().proxy, "http://127.0.0.1:8888");
     }
 
     #[test]

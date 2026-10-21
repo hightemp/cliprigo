@@ -3,7 +3,13 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { api, onComponentProgress } from "$lib/api";
   import { formatBytes, qualityLabel } from "$lib/format";
-  import { app, applySettings, t, toastError } from "$lib/state.svelte";
+  import {
+    app,
+    applySettings,
+    copyDetails,
+    t,
+    toastError,
+  } from "$lib/state.svelte";
   import type {
     ComponentName,
     ComponentProgress,
@@ -36,6 +42,8 @@
       savedTimer = setTimeout(() => (savedVisible = false), 1500);
     } catch (err) {
       toastError(err);
+      // Show what is actually stored, not the rejected value.
+      if (app.settings) draft = { ...app.settings };
     }
   }
 
@@ -148,6 +156,19 @@
       <span class="muted small">{t("settings.filenameHint")}</span>
     </label>
 
+    <label class="row column">
+      <span>{t("settings.proxy")}</span>
+      <input
+        class="input"
+        bind:value={draft.proxy}
+        onchange={save}
+        placeholder="http://127.0.0.1:8888"
+        spellcheck="false"
+        autocomplete="off"
+      />
+      <span class="muted small">{t("settings.proxyHint")}</span>
+    </label>
+
     <label class="row">
       <span>{t("settings.language")}</span>
       <select class="input" bind:value={draft.language} onchange={save}>
@@ -232,10 +253,16 @@
         </li>
       {/each}
     </ul>
-    <button class="btn" onclick={() => api.openLogs().catch(toastError)}>
-      <Icon name="folder" size={16} />
-      {t("settings.openLogs")}
-    </button>
+    <div class="buttons">
+      <button class="btn" onclick={() => copyDetails(null, "diagnostics")}>
+        <Icon name="paste" size={16} />
+        {t("settings.copyDiagnostics")}
+      </button>
+      <button class="btn" onclick={() => api.openLogs().catch(toastError)}>
+        <Icon name="folder" size={16} />
+        {t("settings.openLogs")}
+      </button>
+    </div>
   </section>
 </div>
 
@@ -330,6 +357,12 @@
     display: flex;
     align-items: center;
     gap: 12px;
+  }
+
+  .buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .component {

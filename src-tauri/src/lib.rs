@@ -1,7 +1,9 @@
 mod commands;
 mod components;
 mod db;
+mod diagnostics;
 mod error;
+mod net;
 mod net_env;
 mod process;
 mod queue;
@@ -114,14 +116,22 @@ pub fn run() {
             if interrupted > 0 {
                 tracing::info!(interrupted, "marked unfinished downloads as interrupted");
             }
+            let proxy = net::ProxySetting::default();
+            proxy.set(
+                net::validate_proxy(&db.load_settings()?.proxy)
+                    .ok()
+                    .flatten(),
+            );
+            app.manage(proxy.clone());
             app.manage(db.clone());
 
             let data_dir = app.path().app_data_dir()?;
-            let components = Arc::new(ComponentManager::new(data_dir.join("bin"))?);
+            let components = Arc::new(ComponentManager::new(data_dir.join("bin"), proxy.clone())?);
             app.manage(components.clone());
             app.manage(create_queue(app.handle(), db, components));
             app.manage(thumbs::ThumbCache::new(
                 app.path().app_cache_dir()?.join("thumbs"),
+                proxy,
             )?);
             tauri::async_runtime::spawn(auto_update(app.handle().clone()));
             Ok(())
@@ -149,6 +159,7 @@ pub fn run() {
             commands::video_probe,
             commands::url_inspect,
             commands::thumbnail_cached,
+            commands::diagnostics,
             commands::queue_add,
             commands::queue_cancel,
             commands::queue_retry,

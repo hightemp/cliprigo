@@ -96,6 +96,8 @@ export interface Settings {
   filenameTemplate: string;
   language: Language;
   autoUpdateYtdlp: boolean;
+  /** Empty: system settings and environment. */
+  proxy: string;
 }
 
 export type ComponentName = "ytdlp" | "ffmpeg" | "deno";

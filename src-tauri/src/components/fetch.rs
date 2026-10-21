@@ -18,13 +18,17 @@ pub struct Http {
 }
 
 impl Http {
-    pub fn new() -> AppResult<Self> {
+    /// `proxy` overrides the environment's proxy for every request.
+    pub fn new(proxy: Option<&str>) -> AppResult<Self> {
         let build = |policy| {
-            Client::builder()
+            let mut builder = Client::builder()
                 .user_agent(USER_AGENT)
                 .connect_timeout(Duration::from_secs(15))
-                .redirect(policy)
-                .build()
+                .redirect(policy);
+            if let Some(proxy) = proxy {
+                builder = builder.proxy(reqwest::Proxy::all(proxy)?);
+            }
+            builder.build()
         };
         Ok(Self {
             client: build(redirect::Policy::limited(10))?,

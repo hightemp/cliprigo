@@ -3,7 +3,7 @@
   import { api, onComponentProgress } from "$lib/api";
   import { errorMessage } from "$lib/errors";
   import { formatBytes } from "$lib/format";
-  import { app, t } from "$lib/state.svelte";
+  import { app, copyDetails, t } from "$lib/state.svelte";
   import type { ComponentName, ComponentProgress } from "$lib/types";
   import Icon from "./Icon.svelte";
 
@@ -14,6 +14,7 @@
     state: "waiting" | "working" | "done" | "error";
     progress: ComponentProgress | null;
     error: string | null;
+    raw: unknown;
   };
 
   let rows = $state<Row[]>([]);
@@ -31,6 +32,7 @@
       } catch (err) {
         row.state = "error";
         row.error = errorMessage(err, t);
+        row.raw = err;
         // Later components would most likely fail the same way (network, rate limit).
         break;
       }
@@ -71,6 +73,7 @@
         state: s.installed ? "done" : "waiting",
         progress: null,
         error: null,
+        raw: null,
       }));
       installMissing();
     });
@@ -110,6 +113,12 @@
           {/if}
           {#if row.error}
             <div class="error small">{row.error}</div>
+            <button
+              class="btn copy"
+              onclick={() => copyDetails(row.raw, `install ${row.name}`)}
+            >
+              {t("errors.copyDetails")}
+            </button>
           {/if}
         </li>
       {/each}
@@ -173,5 +182,12 @@
 
   .error {
     color: var(--danger);
+    overflow-wrap: anywhere;
+  }
+
+  .copy {
+    height: 28px;
+    margin-top: 6px;
+    font-size: 13px;
   }
 </style>

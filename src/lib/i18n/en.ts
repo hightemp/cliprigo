@@ -111,6 +111,10 @@ export const en = {
     added: "Added to the queue",
   },
   settings: {
+    proxy: "Proxy",
+    proxyHint:
+      "For yt-dlp, thumbnails and component downloads. Empty: system settings. Examples: http://127.0.0.1:8888, socks5://127.0.0.1:1080",
+    copyDiagnostics: "Copy diagnostics",
     downloadDir: "Download folder",
     choose: "Choose…",
     defaultFormat: "Default format",
@@ -147,6 +151,10 @@ export const en = {
     stay: "Keep downloading",
   },
   errors: {
+    invalid_proxy:
+      "Invalid proxy address. Use a URL like http://127.0.0.1:8888 or socks5://host:1080.",
+    copyDetails: "Copy details",
+    copied: "Details copied. Paste them into a message to the developer.",
     file_missing: "The file was moved or deleted.",
     unknown: "Something went wrong",
     network: "No connection to the server. Check your internet connection.",
@@ -166,7 +174,7 @@ export const en = {
     ytdlp_format_unavailable:
       "The selected quality is not available for this video.",
     ytdlp_timeout:
-      "YouTube didn't answer. It may be blocked or slow on your network: check your VPN or proxy and try again. Details: {message}",
+      "YouTube didn't answer. It may be blocked or slow on your network: check your VPN or set a proxy in Settings and try again. Details: {message}",
     ytdlp_ffmpeg: "Processing with ffmpeg failed. Try reinstalling components.",
   },
 };

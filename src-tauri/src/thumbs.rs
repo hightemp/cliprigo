@@ -5,6 +5,7 @@ use sha2::{Digest, Sha256};
 
 use crate::components::fetch::Http;
 use crate::error::{AppError, AppResult};
+use crate::net::ProxySetting;
 
 const ALLOWED_DOMAINS: &[&str] = &["ytimg.com", "ggpht.com"];
 const EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp"];
@@ -41,16 +42,16 @@ pub fn cache_path(dir: &Path, url: &str) -> PathBuf {
 /// Thumbnails stored under the app cache, so the history shows them offline.
 pub struct ThumbCache {
     dir: PathBuf,
-    http: Http,
+    proxy: ProxySetting,
     tmp_counter: AtomicU64,
 }
 
 impl ThumbCache {
-    pub fn new(dir: PathBuf) -> AppResult<Self> {
+    pub fn new(dir: PathBuf, proxy: ProxySetting) -> AppResult<Self> {
         std::fs::create_dir_all(&dir)?;
         Ok(Self {
             dir,
-            http: Http::new()?,
+            proxy,
             tmp_counter: AtomicU64::new(0),
         })
     }
@@ -69,7 +70,8 @@ impl ThumbCache {
         // Unique temp name: two views may request the same image at once.
         let n = self.tmp_counter.fetch_add(1, Ordering::Relaxed);
         let tmp = self.dir.join(format!(".tmp-{}-{n}", std::process::id()));
-        let result = self.http.download(url, &tmp, |_, _| {}).await;
+        let http = Http::new(self.proxy.get().as_deref())?;
+        let result = http.download(url, &tmp, |_, _| {}).await;
         match result {
             Ok(()) => {
                 std::fs::rename(&tmp, &path)?;

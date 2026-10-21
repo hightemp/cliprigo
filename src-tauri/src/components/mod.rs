@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::now_unix;
 use crate::error::{AppError, AppResult};
+use crate::net::ProxySetting;
 use crate::ytdlp::args::Tools;
 use fetch::Http;
 use platform::Assets;
@@ -109,14 +110,14 @@ pub type ProgressFn<'a> = &'a (dyn Fn(Progress) + Send + Sync);
 pub struct ComponentManager {
     bin_dir: PathBuf,
     assets: Assets,
-    http: Http,
+    proxy: ProxySetting,
     manifest: Mutex<Manifest>,
     /// One install at a time: avoids two writers racing on the same temp files.
     install_lock: tokio::sync::Mutex<()>,
 }
 
 impl ComponentManager {
-    pub fn new(bin_dir: PathBuf) -> AppResult<Self> {
+    pub fn new(bin_dir: PathBuf, proxy: ProxySetting) -> AppResult<Self> {
         std::fs::create_dir_all(&bin_dir)?;
         fsutil::cleanup(&bin_dir);
         let manifest = std::fs::read(bin_dir.join(MANIFEST_FILE))
@@ -125,11 +126,16 @@ impl ComponentManager {
             .unwrap_or_default();
         Ok(Self {
             assets: platform::current()?,
-            http: Http::new()?,
+            proxy,
             manifest: Mutex::new(manifest),
             install_lock: tokio::sync::Mutex::new(()),
             bin_dir,
         })
+    }
+
+    /// A client for the current proxy setting, so a changed setting applies at once.
+    fn http(&self) -> AppResult<Http> {
+        Http::new(self.proxy.get().as_deref())
     }
 
     fn manifest(&self) -> std::sync::MutexGuard<'_, Manifest> {
@@ -177,6 +183,7 @@ impl ComponentManager {
             ytdlp: self.ytdlp_path(),
             ffmpeg: self.ffmpeg_path(),
             deno: self.deno_path(),
+            proxy: self.proxy.get(),
         })
     }
 
@@ -204,7 +211,7 @@ impl ComponentManager {
     /// Installs (or reinstalls) the latest release of `c`. Returns the installed version.
     pub async fn install(&self, c: Component, on_progress: ProgressFn<'_>) -> AppResult<String> {
         let _guard = self.install_lock.lock().await;
-        let tag = self.http.latest_tag(c.repo()).await?;
+        let tag = self.http()?.latest_tag(c.repo()).await?;
         tracing::info!(component = ?c, tag, "installing component");
         match c {
             Component::Ytdlp => self.install_ytdlp(&tag, on_progress).await?,
@@ -229,7 +236,7 @@ impl ComponentManager {
     ) -> AppResult<PathBuf> {
         let tmp = self.tmp_path(asset);
         let url = fetch::release_asset_url(c.repo(), tag, asset);
-        self.http
+        self.http()?
             .download(&url, &tmp, |downloaded, total| {
                 on_progress(Progress {
                     component: c,
@@ -254,7 +261,7 @@ impl ComponentManager {
         let c = Component::Ytdlp;
         let asset = self.assets.ytdlp;
         let sums = self
-            .http
+            .http()?
             .get_text(&fetch::release_asset_url(c.repo(), tag, "SHA2-256SUMS"))
             .await?;
         let expected = fetch::find_checksum(&sums, asset)
@@ -269,7 +276,7 @@ impl ComponentManager {
         let c = Component::Ffmpeg;
         // Shaka publishes MD5 sums only in the release notes, which need the rate-limited
         // REST API. The download itself is HTTPS from GitHub, so skipping is acceptable.
-        let sums = match self.http.release_body(c.repo(), tag).await {
+        let sums = match self.http()?.release_body(c.repo(), tag).await {
             Ok(body) => Some(body),
             Err(e) => {
                 tracing::warn!(error = %e, "ffmpeg checksums unavailable, skipping verification");
@@ -298,7 +305,7 @@ impl ComponentManager {
         let c = Component::Deno;
         let asset = format!("deno-{}.zip", self.assets.deno_triple);
         let sums = self
-            .http
+            .http()?
             .get_text(&fetch::release_asset_url(
                 c.repo(),
                 tag,
@@ -370,7 +377,7 @@ impl ComponentManager {
     pub async fn check_updates(&self) -> AppResult<Vec<UpdateInfo>> {
         let mut result = Vec::with_capacity(Component::ALL.len());
         for component in Component::ALL {
-            let latest = self.http.latest_tag(component.repo()).await?;
+            let latest = self.http()?.latest_tag(component.repo()).await?;
             let current = self
                 .status()
                 .into_iter()
@@ -400,7 +407,7 @@ impl ComponentManager {
         if now_unix() - last < AUTO_UPDATE_INTERVAL_SECS {
             return Ok(None);
         }
-        let latest = self.http.latest_tag(YTDLP_REPO).await?;
+        let latest = self.http()?.latest_tag(YTDLP_REPO).await?;
         self.update_manifest(|m| m.last_update_check = Some(now_unix()))?;
         let current = self.manifest().versions.get(&Component::Ytdlp).cloned();
         if current.as_deref() == Some(latest.as_str()) {
@@ -434,7 +441,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "network"]
     async fn checksums_for_all_platforms() {
-        let http = Http::new().unwrap();
+        let http = Http::new(crate::net::test_proxy().get().as_deref()).unwrap();
         let ytdlp_tag = http.latest_tag(YTDLP_REPO).await.unwrap();
         let ytdlp_sums = http
             .get_text(&fetch::release_asset_url(
@@ -490,7 +497,7 @@ mod tests {
     #[ignore = "network"]
     async fn live_install_all_components() {
         let dir = std::env::temp_dir().join(format!("cliprigo-bin-{}", std::process::id()));
-        let manager = ComponentManager::new(dir.clone()).unwrap();
+        let manager = ComponentManager::new(dir.clone(), crate::net::test_proxy()).unwrap();
         let stages = Mutex::new(Vec::new());
         let on_progress = |p: Progress| {
             let mut stages = stages.lock().unwrap();
@@ -521,7 +528,7 @@ mod tests {
         assert!(files.iter().all(|f| !f.starts_with(fsutil::TMP_PREFIX)));
 
         // A fresh manager reads the persisted manifest.
-        let reopened = ComponentManager::new(dir.clone()).unwrap();
+        let reopened = ComponentManager::new(dir.clone(), crate::net::test_proxy()).unwrap();
         assert!(reopened.status().iter().all(|s| s.version.is_some()));
 
         let updates = reopened.check_updates().await.unwrap();

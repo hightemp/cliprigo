@@ -878,7 +878,7 @@ mod live_tests {
     #[ignore = "network"]
     async fn live_queue_runs_real_downloads() {
         let bin = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/test-bin");
-        let components = Arc::new(ComponentManager::new(bin).unwrap());
+        let components = Arc::new(ComponentManager::new(bin, crate::net::test_proxy()).unwrap());
         for status in components.status() {
             if !status.installed {
                 components.install(status.component, &|_| {}).await.unwrap();

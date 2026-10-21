@@ -13,6 +13,8 @@ pub struct Tools {
     pub ytdlp: PathBuf,
     pub ffmpeg: PathBuf,
     pub deno: PathBuf,
+    /// Passed as `--proxy`; `None` leaves yt-dlp to the environment.
+    pub proxy: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,14 +72,18 @@ pub struct DownloadRequest {
 pub fn common_args(tools: &Tools) -> Vec<OsString> {
     let mut deno = OsString::from("deno:");
     deno.push(&tools.deno);
-    vec![
+    let mut args: Vec<OsString> = vec![
         "--no-config".into(),
         "--no-color".into(),
         "--ffmpeg-location".into(),
         tools.ffmpeg.clone().into(),
         "--js-runtimes".into(),
         deno,
-    ]
+    ];
+    if let Some(proxy) = &tools.proxy {
+        args.extend(["--proxy".into(), proxy.into()]);
+    }
+    args
 }
 
 pub fn probe_args(tools: &Tools, url: &str) -> Vec<OsString> {
@@ -160,6 +166,7 @@ pub(crate) fn test_tools() -> Tools {
         ytdlp: PathBuf::from("/bin/yt-dlp"),
         ffmpeg: PathBuf::from("/bin/ffmpeg"),
         deno: PathBuf::from("/bin/deno"),
+        proxy: None,
     }
 }
 
@@ -191,6 +198,17 @@ mod tests {
         assert!(args.contains(&"--no-config".to_string()));
         assert!(has_pair(&args, "--ffmpeg-location", "/bin/ffmpeg"));
         assert!(has_pair(&args, "--js-runtimes", "deno:/bin/deno"));
+    }
+
+    #[test]
+    fn proxy_is_passed_when_set() {
+        assert!(!strings(common_args(&test_tools())).contains(&"--proxy".to_string()));
+        let mut tools = test_tools();
+        tools.proxy = Some("http://127.0.0.1:8888".into());
+        let args = strings(probe_args(&tools, "https://youtu.be/x"));
+        assert!(has_pair(&args, "--proxy", "http://127.0.0.1:8888"));
+        let args = strings(download_args(&tools, &request(Format::AudioMp3)));
+        assert!(has_pair(&args, "--proxy", "http://127.0.0.1:8888"));
     }
 
     #[test]

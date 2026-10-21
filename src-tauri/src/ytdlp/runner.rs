@@ -149,6 +149,7 @@ pub async fn download(
     };
     if !status.success() {
         let stderr = Vec::from(stderr_tail).join("\n");
+        tracing::warn!(url = req.url, %stderr, "download failed");
         return Err(errors::classify(&stderr).into());
     }
     let path = tracker.final_path().ok_or_else(|| AppError::Ytdlp {
@@ -298,6 +299,7 @@ mod tests {
             ytdlp: script,
             ffmpeg: dir.join("ffmpeg"),
             deno: dir.join("deno"),
+            proxy: None,
         }
     }
 
@@ -622,7 +624,7 @@ mod live_tests {
 
     async fn tools() -> Tools {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/test-bin");
-        let manager = ComponentManager::new(dir).unwrap();
+        let manager = ComponentManager::new(dir, crate::net::test_proxy()).unwrap();
         for status in manager.status() {
             if !status.installed {
                 tokio::time::timeout(STEP_TIMEOUT, manager.install(status.component, &|_| {}))
