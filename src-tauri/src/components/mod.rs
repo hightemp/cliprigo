@@ -428,6 +428,63 @@ fn extract_zip_entry(zip_path: &Path, entry: &str, dest: &Path) -> AppResult<()>
 mod tests {
     use super::*;
 
+    /// Checksum files of the latest releases must list every asset of every platform,
+    /// in a format we can parse. Runs in CI: `cargo test checksums -- --ignored`.
+    /// (Deno's Windows sums once came in PowerShell format and broke installs there.)
+    #[tokio::test]
+    #[ignore = "network"]
+    async fn checksums_for_all_platforms() {
+        let http = Http::new().unwrap();
+        let ytdlp_tag = http.latest_tag(YTDLP_REPO).await.unwrap();
+        let ytdlp_sums = http
+            .get_text(&fetch::release_asset_url(
+                YTDLP_REPO,
+                &ytdlp_tag,
+                "SHA2-256SUMS",
+            ))
+            .await
+            .unwrap();
+        let deno_tag = http.latest_tag(DENO_REPO).await.unwrap();
+        let ffmpeg_tag = http.latest_tag(FFMPEG_REPO).await.unwrap();
+        // Optional in the installer (rate-limited API), but when available it must match.
+        let ffmpeg_sums = http.release_body(FFMPEG_REPO, &ffmpeg_tag).await.ok();
+
+        let mut missing = Vec::new();
+        for (os, arch) in platform::SUPPORTED {
+            let assets = platform::assets_for(os, arch).unwrap();
+            if fetch::find_checksum(&ytdlp_sums, assets.ytdlp).is_none() {
+                missing.push(format!("{os}/{arch}: {}", assets.ytdlp));
+            }
+
+            let deno_asset = format!("deno-{}.zip", assets.deno_triple);
+            let deno_sums = http
+                .get_text(&fetch::release_asset_url(
+                    DENO_REPO,
+                    &deno_tag,
+                    &format!("{deno_asset}.sha256sum"),
+                ))
+                .await
+                .unwrap();
+            if fetch::find_checksum(&deno_sums, &deno_asset).is_none() {
+                missing.push(format!("{os}/{arch}: {deno_asset} in {deno_sums:?}"));
+            }
+
+            if let Some(sums) = &ffmpeg_sums {
+                for name in Component::Ffmpeg.binaries() {
+                    let asset = format!("{name}-{}{}", assets.ffmpeg_suffix, assets.exe_ext);
+                    if fetch::find_checksum(sums, &asset).is_none() {
+                        missing.push(format!("{os}/{arch}: {asset}"));
+                    }
+                }
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "no checksum found for:\n{}",
+            missing.join("\n")
+        );
+    }
+
     /// Real downloads from GitHub: `cargo test -- --ignored components`.
     #[tokio::test]
     #[ignore = "network"]

@@ -44,6 +44,9 @@ jobs:
           cargo fmt --check
           cargo clippy --all-targets -- -D warnings
           cargo test
+      - name: Checksums of all platforms' components
+        working-directory: src-tauri
+        run: cargo test checksums_for_all_platforms -- --ignored
 
   bundle:
     needs: lint

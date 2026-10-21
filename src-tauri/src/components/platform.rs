@@ -11,6 +11,17 @@ pub struct Assets {
     pub exe_ext: &'static str,
 }
 
+/// Every OS/arch pair release builds are made for.
+#[cfg(test)]
+pub const SUPPORTED: &[(&str, &str)] = &[
+    ("windows", "x86_64"),
+    ("windows", "aarch64"),
+    ("macos", "x86_64"),
+    ("macos", "aarch64"),
+    ("linux", "x86_64"),
+    ("linux", "aarch64"),
+];
+
 pub fn current() -> AppResult<Assets> {
     assets_for(std::env::consts::OS, std::env::consts::ARCH)
 }

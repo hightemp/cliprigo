@@ -119,16 +119,46 @@ pub fn release_asset_url(repo: &str, tag: &str, asset: &str) -> String {
     format!("https://github.com/{repo}/releases/download/{tag}/{asset}")
 }
 
-/// Finds the hash for `name` in checksum listings like `<hash>  <name>`, `<hash> *<name>`
-/// or a markdown list item `- <hash>  <name>`.
+/// Finds the hash for `name` in checksum listings like `<hash>  <name>`, `<hash> *<name>`,
+/// a markdown list item `- <hash>  <name>`, or PowerShell `Get-FileHash` output.
 pub fn find_checksum(listing: &str, name: &str) -> Option<String> {
-    listing.lines().find_map(|line| {
-        let line = line.trim().trim_start_matches("- ");
-        let (hash, file) = line.split_once(char::is_whitespace)?;
-        let file = file.trim().trim_start_matches('*');
-        (file == name && hash.chars().all(|c| c.is_ascii_hexdigit()))
-            .then(|| hash.to_ascii_lowercase())
-    })
+    listing
+        .lines()
+        .find_map(|line| {
+            let line = line.trim().trim_start_matches("- ");
+            let (hash, file) = line.split_once(char::is_whitespace)?;
+            let file = file.trim().trim_start_matches('*');
+            (file == name && is_hex(hash)).then(|| hash.to_ascii_lowercase())
+        })
+        .or_else(|| find_powershell_checksum(listing, name))
+}
+
+/// `Get-FileHash` output, used for Deno's Windows builds:
+/// `Hash : <HEX>` followed by `Path : C:\...\<name>`.
+fn find_powershell_checksum(listing: &str, name: &str) -> Option<String> {
+    let mut hash = None;
+    for line in listing.lines() {
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        let value = value.trim();
+        match key.trim() {
+            "Hash" if is_hex(value) => hash = Some(value.to_ascii_lowercase()),
+            "Path" => {
+                let file = value.rsplit(['\\', '/']).next().unwrap_or(value);
+                if file == name {
+                    return hash;
+                }
+                hash = None;
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn is_hex(s: &str) -> bool {
+    !s.is_empty() && s.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 /// Hex digest of a file, computed off the async runtime.
@@ -184,6 +214,22 @@ mod tests {
             Some("2e42")
         );
         assert_eq!(find_checksum(body, "MD5"), None);
+    }
+
+    /// Deno's Windows `.sha256sum` files are PowerShell `Get-FileHash` output
+    /// (CRLF, uppercase hash, full build path), captured from the v2.9.8 release.
+    #[test]
+    fn checksum_in_powershell_format() {
+        let listing = "\r\nAlgorithm : SHA256\r\nHash      : CBA84B26E0DF5AE7F74FC66B86A95B866872A86292EBD84FA1E959927EDD93BF\r\nPath      : C:\\a\\deno\\deno\\target\\release\\deno-x86_64-pc-windows-msvc.zip\r\n\r\n";
+        assert_eq!(
+            find_checksum(listing, "deno-x86_64-pc-windows-msvc.zip").as_deref(),
+            Some("cba84b26e0df5ae7f74fc66b86a95b866872a86292ebd84fa1e959927edd93bf")
+        );
+        // The path must name the requested file.
+        assert_eq!(
+            find_checksum(listing, "deno-aarch64-pc-windows-msvc.zip"),
+            None
+        );
     }
 
     #[tokio::test]
