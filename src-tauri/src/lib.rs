@@ -3,14 +3,19 @@ mod components;
 mod db;
 mod error;
 mod process;
+mod queue;
 mod ytdlp;
 
+use std::sync::Arc;
+
+use futures_util::FutureExt;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 use tracing_subscriber::EnvFilter;
 
 use components::{Component, ComponentManager, Progress};
 use db::Db;
+use queue::{Queue, QueueEvent};
 
 #[derive(Clone, Serialize)]
 struct ComponentUpdated {
@@ -33,7 +38,7 @@ async fn auto_update(app: AppHandle) {
         let _ = app.emit("component://progress", p);
     };
     match app
-        .state::<ComponentManager>()
+        .state::<Arc<ComponentManager>>()
         .auto_update_ytdlp(&emit)
         .await
     {
@@ -49,6 +54,34 @@ async fn auto_update(app: AppHandle) {
         Ok(None) => {}
         Err(e) => tracing::warn!(error = %e, "yt-dlp auto-update failed"),
     }
+}
+
+/// Production queue: runs yt-dlp with the installed tools and forwards events to the UI.
+fn create_queue(app: &AppHandle, db: Db, components: Arc<ComponentManager>) -> Queue {
+    let run: queue::RunFn = Arc::new(move |request, cancel, sink| {
+        let components = components.clone();
+        async move {
+            let tools = components.tools()?;
+            ytdlp::runner::download(&tools, &request, cancel, sink).await
+        }
+        .boxed()
+    });
+    let app = app.clone();
+    let sink: queue::EventSink = Arc::new(move |event| {
+        let result = match &event {
+            QueueEvent::Status { .. } => app.emit("download://status", event),
+            QueueEvent::Progress { .. } => app.emit("download://progress", event),
+        };
+        if let Err(e) = result {
+            tracing::warn!(error = %e, "failed to emit queue event");
+        }
+    });
+    Queue::new(
+        tauri::async_runtime::handle().inner().clone(),
+        db,
+        run,
+        sink,
+    )
 }
 
 fn init_logging(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -77,12 +110,23 @@ pub fn run() {
             if interrupted > 0 {
                 tracing::info!(interrupted, "marked unfinished downloads as interrupted");
             }
-            app.manage(db);
+            app.manage(db.clone());
 
             let data_dir = app.path().app_data_dir()?;
-            app.manage(ComponentManager::new(data_dir.join("bin"))?);
+            let components = Arc::new(ComponentManager::new(data_dir.join("bin"))?);
+            app.manage(components.clone());
+            app.manage(create_queue(app.handle(), db, components));
             tauri::async_runtime::spawn(auto_update(app.handle().clone()));
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Closing would kill running downloads: let the UI ask first, then call app_quit.
+            if let WindowEvent::CloseRequested { api, .. } = event
+                && window.state::<Queue>().has_active()
+            {
+                api.prevent_close();
+                let _ = window.emit("app://close-requested", ());
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::history_list,
@@ -93,6 +137,13 @@ pub fn run() {
             commands::components_install,
             commands::components_check_updates,
             commands::video_probe,
+            commands::url_inspect,
+            commands::queue_add,
+            commands::queue_cancel,
+            commands::queue_retry,
+            commands::queue_list,
+            commands::find_duplicates,
+            commands::app_quit,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

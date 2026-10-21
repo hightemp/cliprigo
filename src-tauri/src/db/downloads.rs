@@ -71,12 +71,9 @@ pub struct DownloadRecord {
     pub playlist_title: Option<String>,
     pub created_at: i64,
     pub completed_at: Option<i64>,
+    pub output_dir: Option<String>,
 }
 
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "used by the download queue (stage 4)")
-)]
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NewDownload {
@@ -90,6 +87,7 @@ pub struct NewDownload {
     pub quality: Option<i64>,
     pub playlist_id: Option<String>,
     pub playlist_title: Option<String>,
+    pub output_dir: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -104,7 +102,7 @@ pub struct HistoryQuery {
 
 const COLUMNS: &str = "id, video_id, url, title, uploader, duration, thumbnail_url, format, \
     quality, file_path, file_size, status, error, playlist_id, playlist_title, created_at, \
-    completed_at";
+    completed_at, output_dir";
 
 const DEFAULT_LIMIT: i64 = 50;
 const MAX_LIMIT: i64 = 500;
@@ -131,20 +129,17 @@ fn from_row(row: &Row) -> rusqlite::Result<DownloadRecord> {
         playlist_title: row.get(14)?,
         created_at: row.get(15)?,
         completed_at: row.get(16)?,
+        output_dir: row.get(17)?,
     })
 }
 
 impl Db {
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "used by the download queue (stage 4)")
-    )]
     pub fn insert_download(&self, d: &NewDownload) -> AppResult<DownloadRecord> {
         let conn = self.conn();
         conn.execute(
             "INSERT INTO downloads (video_id, url, title, uploader, duration, thumbnail_url, \
-             format, quality, status, playlist_id, playlist_title, created_at) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+             format, quality, status, playlist_id, playlist_title, created_at, output_dir) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
                 d.video_id,
                 d.url,
@@ -158,6 +153,7 @@ impl Db {
                 d.playlist_id,
                 d.playlist_title,
                 now_unix(),
+                d.output_dir,
             ],
         )?;
         let id = conn.last_insert_rowid();
@@ -199,10 +195,6 @@ impl Db {
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "used by the download queue (stage 4)")
-    )]
     pub fn set_status(
         &self,
         id: i64,
@@ -218,10 +210,6 @@ impl Db {
         Ok(())
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "used by the download queue (stage 4)")
-    )]
     pub fn set_result(&self, id: i64, file_path: &str, file_size: Option<i64>) -> AppResult<()> {
         self.conn().execute(
             "UPDATE downloads SET file_path = ?2, file_size = ?3 WHERE id = ?1",
@@ -235,6 +223,25 @@ impl Db {
         self.conn()
             .execute("DELETE FROM downloads WHERE id = ?1", [id])?;
         Ok(record)
+    }
+
+    /// Newest completed or active record for each of `video_ids`, to warn before
+    /// downloading the same video twice.
+    pub fn find_duplicates(&self, video_ids: &[String]) -> AppResult<Vec<DownloadRecord>> {
+        if video_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        const RELEVANT: &str = "('completed', 'queued', 'downloading', 'processing')";
+        let placeholders = vec!["?"; video_ids.len()].join(", ");
+        let conn = self.conn();
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {COLUMNS} FROM downloads d \
+             WHERE video_id IN ({placeholders}) AND status IN {RELEVANT} \
+               AND id = (SELECT max(id) FROM downloads d2 \
+                         WHERE d2.video_id = d.video_id AND d2.status IN {RELEVANT})"
+        ))?;
+        let rows = stmt.query_map(rusqlite::params_from_iter(video_ids), from_row)?;
+        Ok(rows.collect::<Result<_, _>>()?)
     }
 
     /// Downloads that were in flight when the app last exited can't be resumed
@@ -341,5 +348,49 @@ mod tests {
         assert_eq!(db.delete_download(a.id).unwrap().unwrap().id, a.id);
         assert!(db.get_download(a.id).unwrap().is_none());
         assert!(db.delete_download(a.id).unwrap().is_none());
+    }
+
+    #[test]
+    fn output_dir_roundtrip() {
+        let db = Db::open_in_memory().unwrap();
+        let mut d = new("a", "x");
+        d.output_dir = Some("/home/u/Videos".into());
+        let r = db.insert_download(&d).unwrap();
+        assert_eq!(r.output_dir.as_deref(), Some("/home/u/Videos"));
+    }
+
+    #[test]
+    fn duplicates_are_completed_or_active_only() {
+        let db = Db::open_in_memory().unwrap();
+        let done = db.insert_download(&new("done", "x")).unwrap();
+        db.set_status(done.id, DownloadStatus::Completed, None)
+            .unwrap();
+        let queued = db.insert_download(&new("queued", "x")).unwrap();
+        let failed = db.insert_download(&new("failed", "x")).unwrap();
+        db.set_status(failed.id, DownloadStatus::Failed, Some("e"))
+            .unwrap();
+        // An older completed copy of the same video: only the newest record is returned.
+        let again = db.insert_download(&new("done", "x")).unwrap();
+        db.set_status(again.id, DownloadStatus::Completed, None)
+            .unwrap();
+
+        let ids: Vec<String> = ["id-done", "id-queued", "id-failed", "id-missing"]
+            .map(String::from)
+            .to_vec();
+        let mut found: Vec<(String, i64)> = db
+            .find_duplicates(&ids)
+            .unwrap()
+            .into_iter()
+            .map(|r| (r.video_id.unwrap(), r.id))
+            .collect();
+        found.sort();
+        assert_eq!(
+            found,
+            vec![
+                ("id-done".into(), again.id),
+                ("id-queued".into(), queued.id)
+            ]
+        );
+        assert!(db.find_duplicates(&[]).unwrap().is_empty());
     }
 }

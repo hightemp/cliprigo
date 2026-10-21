@@ -3,20 +3,21 @@ mod migrations;
 mod settings;
 
 use std::path::Path;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use rusqlite::Connection;
 use rusqlite::functions::FunctionFlags;
 
 use crate::error::AppResult;
 
-pub use downloads::{DownloadRecord, HistoryQuery};
+pub use downloads::{DownloadRecord, DownloadStatus, HistoryQuery, NewDownload};
 pub use settings::Settings;
 
 /// SQLite storage for history and settings. Access is serialized through a mutex:
-/// the workload is tiny, so a single connection is enough.
+/// the workload is tiny, so a single connection is enough. Clones share the connection.
+#[derive(Clone)]
 pub struct Db {
-    conn: Mutex<Connection>,
+    conn: Arc<Mutex<Connection>>,
 }
 
 impl Db {
@@ -38,7 +39,7 @@ impl Db {
         register_functions(&conn)?;
         migrations::run(&mut conn)?;
         Ok(Self {
-            conn: Mutex::new(conn),
+            conn: Arc::new(Mutex::new(conn)),
         })
     }
 

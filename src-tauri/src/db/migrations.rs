@@ -35,6 +35,8 @@ const MIGRATIONS: &[&str] = &[
         value TEXT NOT NULL
     );
     "#,
+    // 2: remember the target folder so failed downloads can be retried
+    "ALTER TABLE downloads ADD COLUMN output_dir TEXT;",
 ];
 
 pub fn run(conn: &mut Connection) -> AppResult<()> {
@@ -62,5 +64,27 @@ mod tests {
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
         assert_eq!(version, MIGRATIONS.len() as i64);
+    }
+
+    #[test]
+    fn upgrade_from_v1_keeps_rows() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        let tx = conn.transaction().unwrap();
+        tx.execute_batch(MIGRATIONS[0]).unwrap();
+        tx.pragma_update(None, "user_version", 1).unwrap();
+        tx.commit().unwrap();
+        conn.execute(
+            "INSERT INTO downloads (url, format, status, created_at) VALUES ('u', 'video', 'completed', 1)",
+            [],
+        )
+        .unwrap();
+
+        run(&mut conn).unwrap();
+        let (count, dir): (i64, Option<String>) = conn
+            .query_row("SELECT count(*), max(output_dir) FROM downloads", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .unwrap();
+        assert_eq!((count, dir), (1, None));
     }
 }

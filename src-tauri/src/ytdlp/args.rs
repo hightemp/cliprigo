@@ -37,6 +37,18 @@ impl Format {
         }
     }
 
+    /// Inverse of `db_name`/`quality`, for retrying a stored download.
+    pub fn from_db(name: &str, quality: Option<i64>) -> Option<Self> {
+        Some(match name {
+            "video" => Self::Video {
+                max_height: quality.and_then(|q| u32::try_from(q).ok()),
+            },
+            "audio_mp3" => Self::AudioMp3,
+            "audio_m4a" => Self::AudioM4a,
+            _ => return None,
+        })
+    }
+
     /// Value stored in `downloads.quality`.
     pub fn quality(self) -> Option<i64> {
         match self {
@@ -281,6 +293,25 @@ mod tests {
         let m4a = strings(download_args(&test_tools(), &request(Format::AudioM4a)));
         assert!(has_pair(&m4a, "-f", "ba[ext=m4a]/ba/b"));
         assert!(has_pair(&m4a, "--audio-format", "m4a"));
+    }
+
+    #[test]
+    fn format_from_db_roundtrip() {
+        for f in [
+            Format::Video { max_height: None },
+            Format::Video {
+                max_height: Some(720),
+            },
+            Format::AudioMp3,
+            Format::AudioM4a,
+        ] {
+            assert_eq!(Format::from_db(f.db_name(), f.quality()), Some(f));
+        }
+        assert_eq!(Format::from_db("webm", None), None);
+        assert_eq!(
+            Format::from_db("video", Some(-1)),
+            Some(Format::Video { max_height: None })
+        );
     }
 
     #[test]
