@@ -1,0 +1,59 @@
+use std::path::Path;
+
+use serde::Serialize;
+use tauri::State;
+
+use crate::db::{Db, DownloadRecord, HistoryQuery, Settings};
+use crate::error::AppResult;
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryItem {
+    #[serde(flatten)]
+    pub record: DownloadRecord,
+    /// `false` when the file was moved or deleted outside the app.
+    pub file_exists: bool,
+}
+
+#[tauri::command]
+pub fn history_list(db: State<'_, Db>, query: HistoryQuery) -> AppResult<Vec<HistoryItem>> {
+    Ok(db
+        .list_downloads(&query)?
+        .into_iter()
+        .map(|record| {
+            let file_exists = record
+                .file_path
+                .as_deref()
+                .is_some_and(|p| Path::new(p).is_file());
+            HistoryItem {
+                record,
+                file_exists,
+            }
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub fn history_delete(db: State<'_, Db>, id: i64, delete_file: bool) -> AppResult<()> {
+    let Some(record) = db.delete_download(id)? else {
+        return Ok(());
+    };
+    if delete_file && let Some(path) = record.file_path {
+        match std::fs::remove_file(&path) {
+            Ok(()) => tracing::info!(path, "deleted downloaded file"),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn settings_get(db: State<'_, Db>) -> AppResult<Settings> {
+    db.load_settings()
+}
+
+#[tauri::command]
+pub fn settings_set(db: State<'_, Db>, settings: Settings) -> AppResult<Settings> {
+    db.save_settings(settings)
+}

@@ -16,11 +16,11 @@
 
 ## Этап 1. Хранилище
 
-- [ ] 1.1 Модуль `db`: открытие SQLite в `app_data_dir`, миграции (таблица версий схемы)
-- [ ] 1.2 Таблица `downloads` (поля из PRD §5.3), индексы по `video_id`, `created_at`, `status`
-- [ ] 1.3 Таблица `settings` (key/value) + типизированная структура настроек с дефолтами
-- [ ] 1.4 Tauri-команды: `history_list(query, status, offset, limit)`, `history_delete(id, delete_file)`, `settings_get`, `settings_set`
-- [ ] 1.5 При старте: перевести `queued/downloading/processing` → `interrupted`
+- [x] 1.1 Модуль `db`: открытие SQLite в `app_data_dir`, миграции (версия схемы в `PRAGMA user_version`)
+- [x] 1.2 Таблица `downloads` (поля из PRD §5.3), индексы по `video_id`, `created_at`, `status`
+- [x] 1.3 Таблица `settings` (key/value) + типизированная структура настроек с дефолтами
+- [x] 1.4 Tauri-команды: `history_list(query, status, offset, limit)`, `history_delete(id, delete_file)`, `settings_get`, `settings_set`; `history_list` также отдаёт `fileExists` (бэкенд для 5.10)
+- [x] 1.5 При старте: перевести `queued/downloading/processing` → `interrupted`
 
 ## Этап 2. Менеджер компонентов (yt-dlp / ffmpeg / deno)
 
