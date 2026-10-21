@@ -21,6 +21,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
       - name: Install Linux deps
         run: |
           sudo apt-get update

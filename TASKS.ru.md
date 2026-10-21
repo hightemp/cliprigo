@@ -24,16 +24,16 @@
 
 ## Этап 2. Менеджер компонентов (yt-dlp / ffmpeg / deno)
 
-- [ ] 2.1 Определение платформы (`os` + `arch`) → имя ассета для каждого компонента
-- [ ] 2.2 Общий загрузчик: HTTP stream во временный файл, прогресс через события, проверка SHA256, атомарный rename
-- [ ] 2.3 yt-dlp: получение последнего тега через редирект `releases/latest`, скачивание бинарника, проверка `SHA2-256SUMS`
-- [ ] 2.4 ffmpeg: скачивание `ffmpeg`/`ffprobe` из `shaka-project/static-ffmpeg-binaries` (одиночные бинарники под все ОС)
-- [ ] 2.5 deno: скачивание zip из `denoland/deno`, распаковка
-- [ ] 2.6 Unix: `chmod +x`; macOS: снятие `com.apple.quarantine` при наличии, ad-hoc подпись `codesign --force -s -`, если `codesign -v` не проходит
-- [ ] 2.7 Определение установленных версий (`--version`), хранение в settings
-- [ ] 2.8 Автопроверка обновлений yt-dlp при старте (с троттлингом), отложенная замена при активных загрузках
-- [ ] 2.9 Команды: `components_status`, `components_install(name)`, `components_check_updates`; события `component://progress`
-- [ ] 2.10 Обработка ошибок: нет сети, rate limit, неверная контрольная сумма — понятные сообщения
+- [x] 2.1 Определение платформы (`os` + `arch`) → имя ассета для каждого компонента
+- [x] 2.2 Общий загрузчик: HTTP stream во временный файл, прогресс через события, проверка SHA256, атомарный rename
+- [x] 2.3 yt-dlp: получение последнего тега через редирект `releases/latest`, скачивание бинарника, проверка `SHA2-256SUMS`
+- [x] 2.4 ffmpeg: скачивание `ffmpeg`/`ffprobe` из `shaka-project/static-ffmpeg-binaries` (одиночные бинарники под все ОС); MD5 из описания релиза, если API доступен
+- [x] 2.5 deno: скачивание zip из `denoland/deno`, проверка `.sha256sum`, распаковка
+- [x] 2.6 Unix: `chmod +x`; macOS: снятие `com.apple.quarantine` при наличии, ad-hoc подпись `codesign --force -s -`, если `codesign -v` не проходит
+- [x] 2.7 Версии установленных компонентов (тег релиза) в `bin/manifest.json`; после установки — пробный запуск `--version`
+- [x] 2.8 Автопроверка обновлений yt-dlp при старте (не чаще раза в 6 часов); замена без ожидания загрузок (Unix — rename поверх, Windows — старый exe переименовывается в `.old`)
+- [x] 2.9 Команды: `components_status`, `components_install(component)`, `components_check_updates`; события `component://progress`, `component://updated`
+- [x] 2.10 Обработка ошибок: нет сети, rate limit, неверная контрольная сумма — ошибки уходят во фронт как `{ code, message }` (тексты — в 5.3)
 
 ## Этап 3. Обёртка над yt-dlp
 

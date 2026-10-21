@@ -1,0 +1,472 @@
+mod fetch;
+mod fsutil;
+mod platform;
+
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::Duration;
+
+use serde::{Deserialize, Serialize};
+
+use crate::db::now_unix;
+use crate::error::{AppError, AppResult};
+use fetch::Http;
+use platform::Assets;
+
+const YTDLP_REPO: &str = "yt-dlp/yt-dlp";
+const FFMPEG_REPO: &str = "shaka-project/static-ffmpeg-binaries";
+const DENO_REPO: &str = "denoland/deno";
+
+const MANIFEST_FILE: &str = "manifest.json";
+const AUTO_UPDATE_INTERVAL_SECS: i64 = 6 * 60 * 60;
+/// First run of a PyInstaller binary unpacks itself, which can be slow on cold disks.
+const SMOKE_TEST_TIMEOUT: Duration = Duration::from_secs(60);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Component {
+    Ytdlp,
+    Ffmpeg,
+    Deno,
+}
+
+impl Component {
+    pub const ALL: [Component; 3] = [Self::Ytdlp, Self::Ffmpeg, Self::Deno];
+
+    fn repo(self) -> &'static str {
+        match self {
+            Self::Ytdlp => YTDLP_REPO,
+            Self::Ffmpeg => FFMPEG_REPO,
+            Self::Deno => DENO_REPO,
+        }
+    }
+
+    /// Local executables this component provides (without extension).
+    fn binaries(self) -> &'static [&'static str] {
+        match self {
+            Self::Ytdlp => &["yt-dlp"],
+            Self::Ffmpeg => &["ffmpeg", "ffprobe"],
+            Self::Deno => &["deno"],
+        }
+    }
+
+    fn version_arg(self) -> &'static str {
+        match self {
+            Self::Ffmpeg => "-version",
+            Self::Ytdlp | Self::Deno => "--version",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ComponentStatus {
+    pub component: Component,
+    pub installed: bool,
+    pub version: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Stage {
+    Download,
+    Verify,
+    Install,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Progress {
+    pub component: Component,
+    pub stage: Stage,
+    /// Release asset being processed.
+    pub file: String,
+    pub downloaded: u64,
+    pub total: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateInfo {
+    pub component: Component,
+    pub current: Option<String>,
+    pub latest: String,
+    pub update_available: bool,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct Manifest {
+    versions: HashMap<Component, String>,
+    last_update_check: Option<i64>,
+}
+
+pub type ProgressFn<'a> = &'a (dyn Fn(Progress) + Send + Sync);
+
+/// Downloads, verifies and updates the external tools in `<app_data_dir>/bin`.
+pub struct ComponentManager {
+    bin_dir: PathBuf,
+    assets: Assets,
+    http: Http,
+    manifest: Mutex<Manifest>,
+    /// One install at a time: avoids two writers racing on the same temp files.
+    install_lock: tokio::sync::Mutex<()>,
+}
+
+impl ComponentManager {
+    pub fn new(bin_dir: PathBuf) -> AppResult<Self> {
+        std::fs::create_dir_all(&bin_dir)?;
+        fsutil::cleanup(&bin_dir);
+        let manifest = std::fs::read(bin_dir.join(MANIFEST_FILE))
+            .ok()
+            .and_then(|raw| serde_json::from_slice(&raw).ok())
+            .unwrap_or_default();
+        Ok(Self {
+            assets: platform::current()?,
+            http: Http::new()?,
+            manifest: Mutex::new(manifest),
+            install_lock: tokio::sync::Mutex::new(()),
+            bin_dir,
+        })
+    }
+
+    fn manifest(&self) -> std::sync::MutexGuard<'_, Manifest> {
+        self.manifest.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn update_manifest(&self, f: impl FnOnce(&mut Manifest)) -> AppResult<()> {
+        let mut manifest = self.manifest();
+        f(&mut manifest);
+        let json = serde_json::to_vec_pretty(&*manifest)?;
+        let tmp = self
+            .bin_dir
+            .join(format!("{}{MANIFEST_FILE}", fsutil::TMP_PREFIX));
+        std::fs::write(&tmp, json)?;
+        std::fs::rename(tmp, self.bin_dir.join(MANIFEST_FILE))?;
+        Ok(())
+    }
+
+    fn binary_path(&self, name: &str) -> PathBuf {
+        self.bin_dir.join(format!("{name}{}", self.assets.exe_ext))
+    }
+
+    fn tmp_path(&self, name: &str) -> PathBuf {
+        self.bin_dir.join(format!("{}{name}", fsutil::TMP_PREFIX))
+    }
+
+    pub fn ytdlp_path(&self) -> PathBuf {
+        self.binary_path("yt-dlp")
+    }
+
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "used by the yt-dlp runner (stage 3)")
+    )]
+    pub fn ffmpeg_path(&self) -> PathBuf {
+        self.binary_path("ffmpeg")
+    }
+
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "used by the yt-dlp runner (stage 3)")
+    )]
+    pub fn deno_path(&self) -> PathBuf {
+        self.binary_path("deno")
+    }
+
+    fn is_installed(&self, c: Component) -> bool {
+        c.binaries().iter().all(|b| self.binary_path(b).is_file())
+    }
+
+    pub fn status(&self) -> Vec<ComponentStatus> {
+        let manifest = self.manifest();
+        Component::ALL
+            .into_iter()
+            .map(|component| {
+                let installed = self.is_installed(component);
+                ComponentStatus {
+                    component,
+                    installed,
+                    version: installed
+                        .then(|| manifest.versions.get(&component).cloned())
+                        .flatten(),
+                }
+            })
+            .collect()
+    }
+
+    /// Installs (or reinstalls) the latest release of `c`. Returns the installed version.
+    pub async fn install(&self, c: Component, on_progress: ProgressFn<'_>) -> AppResult<String> {
+        let _guard = self.install_lock.lock().await;
+        let tag = self.http.latest_tag(c.repo()).await?;
+        tracing::info!(component = ?c, tag, "installing component");
+        match c {
+            Component::Ytdlp => self.install_ytdlp(&tag, on_progress).await?,
+            Component::Ffmpeg => self.install_ffmpeg(&tag, on_progress).await?,
+            Component::Deno => self.install_deno(&tag, on_progress).await?,
+        }
+        self.smoke_test(c).await?;
+        self.update_manifest(|m| {
+            m.versions.insert(c, tag.clone());
+        })?;
+        tracing::info!(component = ?c, tag, "component installed");
+        Ok(tag)
+    }
+
+    /// Downloads one release asset into a temp file, reporting progress.
+    async fn fetch_asset(
+        &self,
+        c: Component,
+        tag: &str,
+        asset: &str,
+        on_progress: ProgressFn<'_>,
+    ) -> AppResult<PathBuf> {
+        let tmp = self.tmp_path(asset);
+        let url = fetch::release_asset_url(c.repo(), tag, asset);
+        self.http
+            .download(&url, &tmp, |downloaded, total| {
+                on_progress(Progress {
+                    component: c,
+                    stage: Stage::Download,
+                    file: asset.to_string(),
+                    downloaded,
+                    total,
+                })
+            })
+            .await?;
+        on_progress(Progress {
+            component: c,
+            stage: Stage::Verify,
+            file: asset.to_string(),
+            downloaded: 0,
+            total: None,
+        });
+        Ok(tmp)
+    }
+
+    async fn install_ytdlp(&self, tag: &str, on_progress: ProgressFn<'_>) -> AppResult<()> {
+        let c = Component::Ytdlp;
+        let asset = self.assets.ytdlp;
+        let sums = self
+            .http
+            .get_text(&fetch::release_asset_url(c.repo(), tag, "SHA2-256SUMS"))
+            .await?;
+        let expected = fetch::find_checksum(&sums, asset)
+            .ok_or_else(|| AppError::Checksum(format!("{asset} (missing from SHA2-256SUMS)")))?;
+        let tmp = self.fetch_asset(c, tag, asset, on_progress).await?;
+        fetch::verify::<sha2::Sha256>(&tmp, &expected, asset).await?;
+        self.finish(c, asset, &tmp, &self.ytdlp_path(), on_progress)
+            .await
+    }
+
+    async fn install_ffmpeg(&self, tag: &str, on_progress: ProgressFn<'_>) -> AppResult<()> {
+        let c = Component::Ffmpeg;
+        // Shaka publishes MD5 sums only in the release notes, which need the rate-limited
+        // REST API. The download itself is HTTPS from GitHub, so skipping is acceptable.
+        let sums = match self.http.release_body(c.repo(), tag).await {
+            Ok(body) => Some(body),
+            Err(e) => {
+                tracing::warn!(error = %e, "ffmpeg checksums unavailable, skipping verification");
+                None
+            }
+        };
+        for name in c.binaries() {
+            let asset = format!(
+                "{name}-{}{}",
+                self.assets.ffmpeg_suffix, self.assets.exe_ext
+            );
+            let tmp = self.fetch_asset(c, tag, &asset, on_progress).await?;
+            if let Some(sums) = &sums {
+                match fetch::find_checksum(sums, &asset) {
+                    Some(expected) => fetch::verify::<md5::Md5>(&tmp, &expected, &asset).await?,
+                    None => tracing::warn!(asset, "no checksum listed for asset"),
+                }
+            }
+            self.finish(c, &asset, &tmp, &self.binary_path(name), on_progress)
+                .await?;
+        }
+        Ok(())
+    }
+
+    async fn install_deno(&self, tag: &str, on_progress: ProgressFn<'_>) -> AppResult<()> {
+        let c = Component::Deno;
+        let asset = format!("deno-{}.zip", self.assets.deno_triple);
+        let sums = self
+            .http
+            .get_text(&fetch::release_asset_url(
+                c.repo(),
+                tag,
+                &format!("{asset}.sha256sum"),
+            ))
+            .await?;
+        let expected = fetch::find_checksum(&sums, &asset)
+            .ok_or_else(|| AppError::Checksum(format!("{asset} (missing checksum)")))?;
+        let zip_path = self.fetch_asset(c, tag, &asset, on_progress).await?;
+        fetch::verify::<sha2::Sha256>(&zip_path, &expected, &asset).await?;
+
+        let entry = format!("deno{}", self.assets.exe_ext);
+        let tmp = self.tmp_path(&entry);
+        let extracted = {
+            let (zip_path, tmp, entry) = (zip_path.clone(), tmp.clone(), entry.clone());
+            tokio::task::spawn_blocking(move || extract_zip_entry(&zip_path, &entry, &tmp))
+                .await
+                .map_err(|e| AppError::Other(e.to_string()))?
+        };
+        let _ = std::fs::remove_file(&zip_path);
+        extracted?;
+        self.finish(c, &asset, &tmp, &self.binary_path("deno"), on_progress)
+            .await
+    }
+
+    async fn finish(
+        &self,
+        c: Component,
+        asset: &str,
+        tmp: &Path,
+        dest: &Path,
+        on_progress: ProgressFn<'_>,
+    ) -> AppResult<()> {
+        on_progress(Progress {
+            component: c,
+            stage: Stage::Install,
+            file: asset.to_string(),
+            downloaded: 0,
+            total: None,
+        });
+        let result = fsutil::install_file(tmp, dest).await;
+        if result.is_err() {
+            let _ = std::fs::remove_file(tmp);
+        }
+        result
+    }
+
+    /// Runs each binary once so a broken download, missing loader or antivirus block
+    /// surfaces right after install rather than in the middle of a video download.
+    async fn smoke_test(&self, c: Component) -> AppResult<()> {
+        for name in c.binaries() {
+            let path = self.binary_path(name);
+            let output = tokio::time::timeout(
+                SMOKE_TEST_TIMEOUT,
+                crate::process::command(&path).arg(c.version_arg()).output(),
+            )
+            .await
+            .map_err(|_| AppError::Other(format!("{name} did not respond")))??;
+            if !output.status.success() {
+                return Err(AppError::Other(format!(
+                    "{name} failed to run: {}",
+                    String::from_utf8_lossy(&output.stderr).trim()
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn check_updates(&self) -> AppResult<Vec<UpdateInfo>> {
+        let mut result = Vec::with_capacity(Component::ALL.len());
+        for component in Component::ALL {
+            let latest = self.http.latest_tag(component.repo()).await?;
+            let current = self
+                .status()
+                .into_iter()
+                .find(|s| s.component == component)
+                .and_then(|s| s.version);
+            result.push(UpdateInfo {
+                component,
+                update_available: current.as_deref() != Some(latest.as_str()),
+                current,
+                latest,
+            });
+        }
+        self.update_manifest(|m| m.last_update_check = Some(now_unix()))?;
+        Ok(result)
+    }
+
+    /// Updates yt-dlp if it is installed and the last check is older than the interval.
+    /// Returns the new version when an update was installed.
+    pub async fn auto_update_ytdlp(
+        &self,
+        on_progress: ProgressFn<'_>,
+    ) -> AppResult<Option<String>> {
+        if !self.is_installed(Component::Ytdlp) {
+            return Ok(None);
+        }
+        let last = self.manifest().last_update_check.unwrap_or(0);
+        if now_unix() - last < AUTO_UPDATE_INTERVAL_SECS {
+            return Ok(None);
+        }
+        let latest = self.http.latest_tag(YTDLP_REPO).await?;
+        self.update_manifest(|m| m.last_update_check = Some(now_unix()))?;
+        let current = self.manifest().versions.get(&Component::Ytdlp).cloned();
+        if current.as_deref() == Some(latest.as_str()) {
+            return Ok(None);
+        }
+        tracing::info!(?current, latest, "updating yt-dlp");
+        self.install(Component::Ytdlp, on_progress).await.map(Some)
+    }
+}
+
+fn extract_zip_entry(zip_path: &Path, entry: &str, dest: &Path) -> AppResult<()> {
+    let file = std::fs::File::open(zip_path)?;
+    let mut archive =
+        zip::ZipArchive::new(file).map_err(|e| AppError::Other(format!("bad archive: {e}")))?;
+    let mut src = archive
+        .by_name(entry)
+        .map_err(|e| AppError::Other(format!("{entry} not found in archive: {e}")))?;
+    let mut out = std::fs::File::create(dest)?;
+    std::io::copy(&mut src, &mut out)?;
+    out.sync_all()?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Real downloads from GitHub: `cargo test -- --ignored components`.
+    #[tokio::test]
+    #[ignore = "network"]
+    async fn install_all_components() {
+        let dir = std::env::temp_dir().join(format!("cliprigo-bin-{}", std::process::id()));
+        let manager = ComponentManager::new(dir.clone()).unwrap();
+        let stages = Mutex::new(Vec::new());
+        let on_progress = |p: Progress| {
+            let mut stages = stages.lock().unwrap();
+            if stages.last() != Some(&(p.component, p.file.clone())) {
+                stages.push((p.component, p.file.clone()));
+            }
+        };
+
+        for c in Component::ALL {
+            let version = manager.install(c, &on_progress).await.unwrap();
+            println!("{c:?} {version}");
+        }
+        assert!(
+            manager
+                .status()
+                .iter()
+                .all(|s| s.installed && s.version.is_some())
+        );
+        assert!(manager.ffmpeg_path().is_file() && manager.deno_path().is_file());
+
+        // Leftover temp files must be gone, only binaries and the manifest remain.
+        let mut files: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        files.sort();
+        println!("{files:?}");
+        assert!(files.iter().all(|f| !f.starts_with(fsutil::TMP_PREFIX)));
+
+        // A fresh manager reads the persisted manifest.
+        let reopened = ComponentManager::new(dir.clone()).unwrap();
+        assert!(reopened.status().iter().all(|s| s.version.is_some()));
+
+        let updates = reopened.check_updates().await.unwrap();
+        assert!(updates.iter().all(|u| !u.update_available), "{updates:?}");
+        // Right after a check, auto-update is throttled.
+        assert_eq!(reopened.auto_update_ytdlp(&|_| {}).await.unwrap(), None);
+
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+}

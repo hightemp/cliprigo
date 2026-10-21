@@ -1,8 +1,9 @@
 use std::path::Path;
 
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
+use crate::components::{Component, ComponentManager, ComponentStatus, Progress, UpdateInfo};
 use crate::db::{Db, DownloadRecord, HistoryQuery, Settings};
 use crate::error::AppResult;
 
@@ -56,4 +57,29 @@ pub fn settings_get(db: State<'_, Db>) -> AppResult<Settings> {
 #[tauri::command]
 pub fn settings_set(db: State<'_, Db>, settings: Settings) -> AppResult<Settings> {
     db.save_settings(settings)
+}
+
+#[tauri::command]
+pub fn components_status(manager: State<'_, ComponentManager>) -> Vec<ComponentStatus> {
+    manager.status()
+}
+
+/// Installs or reinstalls the latest version, streaming `component://progress` events.
+#[tauri::command]
+pub async fn components_install(
+    app: AppHandle,
+    manager: State<'_, ComponentManager>,
+    component: Component,
+) -> AppResult<String> {
+    let emit = |p: Progress| {
+        let _ = app.emit("component://progress", p);
+    };
+    manager.install(component, &emit).await
+}
+
+#[tauri::command]
+pub async fn components_check_updates(
+    manager: State<'_, ComponentManager>,
+) -> AppResult<Vec<UpdateInfo>> {
+    manager.check_updates().await
 }

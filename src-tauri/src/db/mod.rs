@@ -59,10 +59,6 @@ fn register_functions(conn: &Connection) -> rusqlite::Result<()> {
     )
 }
 
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "used by the download queue (stage 4)")
-)]
 pub(crate) fn now_unix() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

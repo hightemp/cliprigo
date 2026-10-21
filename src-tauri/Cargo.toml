@@ -35,6 +35,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tracing-appender = "0.2.5"
 dirs = "7.0.0"
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "stream", "json", "http2"] }
+md-5 = "0.11.0"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
