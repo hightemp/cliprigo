@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, VecDeque};
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 
@@ -169,6 +169,9 @@ fn build_command(tools: &Tools, args: Vec<OsString>) -> Command {
         // Python would otherwise use the console code page on Windows and mangle titles.
         .env("PYTHONUTF8", "1")
         .env("PYTHONIOENCODING", "utf-8")
+        // Without it progress lines can arrive in blocks (seen on Windows), so
+        // progress stutters and cancel reacts late.
+        .env("PYTHONUNBUFFERED", "1")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -212,7 +215,9 @@ fn spawn_reader(
 
 async fn abort(child: &mut Child, tracker: &Tracker) -> Outcome {
     kill_tree(child).await;
-    remove_partial_files(tracker);
+    let seen = tracker.seen_files();
+    // Retries sleep, so keep them off the async runtime.
+    let _ = tokio::task::spawn_blocking(move || remove_partial_files(seen)).await;
     Outcome::Canceled
 }
 
@@ -226,22 +231,57 @@ async fn kill_tree(child: &mut Child) {
     }
     #[cfg(windows)]
     if let Some(pid) = child.id() {
-        let _ = crate::process::output(
-            crate::process::command(std::path::Path::new("taskkill")).args([
+        let taskkill =
+            crate::process::output(crate::process::command(Path::new("taskkill")).args([
                 "/T",
                 "/F",
                 "/PID",
                 &pid.to_string(),
-            ]),
-        )
-        .await;
+            ]))
+            .await;
+        match taskkill {
+            Ok(out) if out.status.success() => {}
+            Ok(out) => tracing::warn!(
+                pid,
+                stderr = %String::from_utf8_lossy(&out.stderr).trim(),
+                "taskkill failed"
+            ),
+            Err(e) => tracing::warn!(pid, error = %e, "taskkill could not run"),
+        }
     }
     let _ = child.kill().await;
 }
 
-fn remove_partial_files(tracker: &Tracker) {
+/// Windows releases a killed process's file handles with a short delay.
+const REMOVE_ATTEMPTS: u32 = 15;
+const REMOVE_DELAY: Duration = Duration::from_millis(200);
+
+/// Removes `path`, retrying while it is still locked. A missing file counts as removed.
+fn remove_with_retry(
+    path: &Path,
+    attempts: u32,
+    delay: Duration,
+    mut remove: impl FnMut(&Path) -> std::io::Result<()>,
+) -> std::io::Result<()> {
+    let mut last = None;
+    for attempt in 1..=attempts {
+        match remove(path) {
+            Ok(()) => return Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => {
+                last = Some(e);
+                if attempt < attempts {
+                    std::thread::sleep(delay);
+                }
+            }
+        }
+    }
+    Err(last.unwrap_or_else(|| std::io::Error::other("no attempts")))
+}
+
+fn remove_partial_files(seen: Vec<PathBuf>) {
     let mut by_dir: BTreeMap<PathBuf, Vec<PathBuf>> = BTreeMap::new();
-    for path in tracker.seen_files() {
+    for path in seen {
         if let Some(dir) = path.parent() {
             by_dir.entry(dir.to_path_buf()).or_default().push(path);
         }
@@ -256,7 +296,9 @@ fn remove_partial_files(tracker: &Tracker) {
             .collect();
         for name in progress::cleanup_candidates(&listing, &seen) {
             let path = dir.join(&name);
-            match std::fs::remove_file(&path) {
+            match remove_with_retry(&path, REMOVE_ATTEMPTS, REMOVE_DELAY, |p| {
+                std::fs::remove_file(p)
+            }) {
                 Ok(()) => tracing::info!(?path, "removed partial file"),
                 Err(e) => tracing::warn!(?path, error = %e, "could not remove partial file"),
             }
@@ -288,7 +330,8 @@ mod tests {
         std::fs::write(
             &script,
             format!(
-                "#!/bin/sh\nfor a in \"$@\"; do printf '%s\\n' \"$a\"; done > '{}'\necho \"PYTHONUTF8=$PYTHONUTF8\" >> '{}'\n{body}\n",
+                "#!/bin/sh\nfor a in \"$@\"; do printf '%s\\n' \"$a\"; done > '{}'\necho \"PYTHONUTF8=$PYTHONUTF8\" >> '{}'\necho \"PYTHONUNBUFFERED=$PYTHONUNBUFFERED\" >> '{}'\n{body}\n",
+                args_file.display(),
                 args_file.display(),
                 args_file.display()
             ),
@@ -348,6 +391,8 @@ mod tests {
         );
         // Forces UTF-8 output, which matters on Windows consoles.
         assert!(args.contains(&"PYTHONUTF8=1".to_string()));
+        // Progress must arrive line by line, not in blocks (seen on Windows).
+        assert!(args.contains(&"PYTHONUNBUFFERED=1".to_string()));
     }
 
     #[tokio::test]
@@ -397,6 +442,41 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
         assert!(!process_alive(child), "child {child} must be killed");
+    }
+
+    #[test]
+    fn removal_is_retried_while_the_file_is_locked() {
+        // Windows keeps a file locked for a moment after the process holding it died.
+        let mut calls = 0;
+        let ok = remove_with_retry(Path::new("x"), 5, Duration::ZERO, |_| {
+            calls += 1;
+            if calls < 3 {
+                Err(std::io::Error::other("used by another process"))
+            } else {
+                Ok(())
+            }
+        });
+        assert!(ok.is_ok());
+        assert_eq!(calls, 3);
+
+        let mut calls = 0;
+        let err = remove_with_retry(Path::new("x"), 4, Duration::ZERO, |_| {
+            calls += 1;
+            Err(std::io::Error::other("locked"))
+        });
+        assert!(err.is_err());
+        assert_eq!(calls, 4);
+
+        // A file that is already gone is fine.
+        let mut calls = 0;
+        assert!(
+            remove_with_retry(Path::new("x"), 4, Duration::ZERO, |_| {
+                calls += 1;
+                Err(std::io::ErrorKind::NotFound.into())
+            })
+            .is_ok()
+        );
+        assert_eq!(calls, 1);
     }
 
     #[tokio::test]
@@ -777,16 +857,24 @@ mod live_tests {
         let tools = tools().await;
         let dir = tempfile::tempdir().unwrap();
         let req = request(VIDEOS[0], Format::Video { max_height: None }, dir.path());
+        let canceled_at = std::sync::Mutex::new(None);
         let outcome = live("cancel download", || {
             let cancel = CancellationToken::new();
             let trigger = cancel.clone();
+            let canceled_at = &canceled_at;
             download(&tools, &req, cancel, move |s| {
-                if s.downloaded > 0 {
+                if s.downloaded > 0 && !trigger.is_cancelled() {
+                    *canceled_at.lock().unwrap() = Some(std::time::Instant::now());
                     trigger.cancel();
                 }
             })
         })
         .await;
+        if let Some(at) = *canceled_at.lock().unwrap() {
+            let took = at.elapsed();
+            eprintln!("cancel took {took:?} from request to return");
+            assert!(took < Duration::from_secs(10), "cancel took {took:?}");
+        }
         if let Some(outcome) = outcome {
             assert_eq!(outcome, Outcome::Canceled);
             assert!(
