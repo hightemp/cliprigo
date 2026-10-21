@@ -1,6 +1,6 @@
 [package]
 name = "cliprigo"
-version = "0.1.1"
+version = "0.1.2"
 description = "YouTube downloader with history, powered by yt-dlp"
 authors = ["hightemp"]
 edition = "2024"
