@@ -12,6 +12,8 @@ pub enum ErrorKind {
     Network,
     FormatUnavailable,
     Ffmpeg,
+    /// yt-dlp produced no result in time; the message carries its last output.
+    Timeout,
     Other,
 }
 
@@ -26,6 +28,7 @@ impl ErrorKind {
             Self::Network => "ytdlp_network",
             Self::FormatUnavailable => "ytdlp_format_unavailable",
             Self::Ffmpeg => "ytdlp_ffmpeg",
+            Self::Timeout => "ytdlp_timeout",
             Self::Other => "ytdlp_other",
         }
     }

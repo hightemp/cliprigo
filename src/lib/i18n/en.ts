@@ -165,6 +165,8 @@ export const en = {
     ytdlp_network: "Network error while downloading. Check your connection.",
     ytdlp_format_unavailable:
       "The selected quality is not available for this video.",
+    ytdlp_timeout:
+      "YouTube didn't answer. It may be blocked or slow on your network: check your VPN or proxy and try again. Details: {message}",
     ytdlp_ffmpeg: "Processing with ffmpeg failed. Try reinstalling components.",
   },
 };

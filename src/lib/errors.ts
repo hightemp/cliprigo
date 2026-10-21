@@ -18,7 +18,8 @@ function isAppError(value: unknown): value is AppError {
 export function errorMessage(err: unknown, t: Translate): string {
   if (isAppError(err)) {
     const key = `errors.${err.code}`;
-    const translated = t(key);
+    // Translations may show the backend's detail via {message}.
+    const translated = t(key, { message: err.message });
     // Codes without a friendly text (io, db...) show the backend's message.
     if (translated !== key) return translated;
     return err.message || t("errors.unknown");

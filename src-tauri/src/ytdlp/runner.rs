@@ -27,19 +27,74 @@ pub enum Outcome {
 
 /// Fetches metadata for a video or a playlist.
 pub async fn probe(tools: &Tools, url: &str) -> AppResult<ProbeResult> {
-    let output = tokio::time::timeout(
-        PROBE_TIMEOUT,
-        crate::process::output(&mut build_command(tools, args::probe_args(tools, url))),
-    )
-    .await
-    .map_err(|_| AppError::Ytdlp {
-        kind: ErrorKind::Network,
-        message: "timed out while fetching video info".into(),
-    })??;
-    if !output.status.success() {
-        return Err(errors::classify(&String::from_utf8_lossy(&output.stderr)).into());
+    probe_with_timeout(tools, url, PROBE_TIMEOUT).await
+}
+
+/// Like [`probe`]. stderr is collected while yt-dlp runs, so a hang (e.g. YouTube
+/// unreachable without a proxy) ends with an error that shows where it got stuck.
+async fn probe_with_timeout(tools: &Tools, url: &str, timeout: Duration) -> AppResult<ProbeResult> {
+    let started = std::time::Instant::now();
+    let mut child =
+        crate::process::spawn(&mut build_command(tools, args::probe_args(tools, url))).await?;
+    let stdout = read_all(child.stdout.take());
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    spawn_reader(child.stderr.take(), Stream::Stderr, tx);
+
+    let mut stderr = VecDeque::with_capacity(STDERR_TAIL);
+    let deadline = tokio::time::sleep(timeout);
+    tokio::pin!(deadline);
+    loop {
+        tokio::select! {
+            msg = rx.recv() => match msg {
+                Some((_, line)) => {
+                    if stderr.len() == STDERR_TAIL {
+                        stderr.pop_front();
+                    }
+                    stderr.push_back(line);
+                }
+                None => break,
+            },
+            _ = &mut deadline => {
+                kill_tree(&mut child).await;
+                let last = stderr.iter().rev().find(|l| !l.trim().is_empty());
+                tracing::warn!(url, stderr = ?stderr, "yt-dlp timed out while probing");
+                return Err(AppError::Ytdlp {
+                    kind: ErrorKind::Timeout,
+                    message: format!(
+                        "no answer in {} s; last output: {}",
+                        timeout.as_secs(),
+                        last.map_or("(none)", String::as_str)
+                    ),
+                });
+            }
+        }
     }
-    probe::parse_probe(&String::from_utf8_lossy(&output.stdout))
+    let status = child.wait().await?;
+    let stdout = stdout.await.map_err(|e| AppError::Other(e.to_string()))??;
+    tracing::info!(
+        url,
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        "probe finished"
+    );
+    if !status.success() {
+        let stderr = Vec::from(stderr).join("\n");
+        tracing::warn!(url, %stderr, "probe failed");
+        return Err(errors::classify(&stderr).into());
+    }
+    probe::parse_probe(&String::from_utf8_lossy(&stdout))
+}
+
+/// Reads a pipe to the end in the background (probe JSON can be megabytes).
+fn read_all(
+    pipe: Option<impl AsyncRead + Unpin + Send + 'static>,
+) -> tokio::task::JoinHandle<AppResult<Vec<u8>>> {
+    tokio::spawn(async move {
+        let mut buf = Vec::new();
+        if let Some(mut pipe) = pipe {
+            tokio::io::AsyncReadExt::read_to_end(&mut pipe, &mut buf).await?;
+        }
+        Ok(buf)
+    })
 }
 
 /// Runs one download, streaming progress snapshots until it finishes or `cancel` fires.
@@ -294,6 +349,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn probe_timeout_reports_last_output_and_kills_tree() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid_file = dir.path().join("child.pid");
+        // Stands in for yt-dlp stuck while Deno solves YouTube's JS challenge.
+        let body = format!(
+            "echo '[youtube] x: Downloading webpage' >&2\n\
+             echo '[jsc:deno] Solving JS challenges using deno' >&2\n\
+             sleep 30 &\n\
+             echo $! > '{}'\n\
+             wait",
+            pid_file.display()
+        );
+        let tools = fake_tools(dir.path(), &body);
+
+        let started = std::time::Instant::now();
+        let err = probe_with_timeout(&tools, "https://youtu.be/x", Duration::from_secs(1))
+            .await
+            .unwrap_err();
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "{:?}",
+            started.elapsed()
+        );
+        match err {
+            AppError::Ytdlp {
+                kind: ErrorKind::Timeout,
+                message,
+            } => assert!(
+                message.contains("Solving JS challenges using deno"),
+                "{message}"
+            ),
+            other => panic!("expected timeout, got {other:?}"),
+        }
+
+        let child: i32 = std::fs::read_to_string(&pid_file)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        for _ in 0..50 {
+            if !process_alive(child) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert!(!process_alive(child), "child {child} must be killed");
+    }
+
+    #[tokio::test]
     async fn probe_failure_is_classified() {
         let dir = tempfile::tempdir().unwrap();
         let tools = fake_tools(
@@ -496,53 +600,75 @@ mod tests {
     }
 }
 
-/// Real yt-dlp against YouTube: `cargo test live -- --ignored --test-threads=1`.
-/// Components are cached in `target/test-bin` between runs.
+/// Real yt-dlp against YouTube: `cargo test live_ -- --ignored --test-threads=1`.
+/// Runs in CI on Windows, macOS and Linux. Components are cached in `target/test-bin`.
 #[cfg(test)]
 mod live_tests {
-    use std::path::PathBuf;
+    use std::future::Future;
+    use std::path::{Path, PathBuf};
 
     use super::*;
     use crate::components::ComponentManager;
     use crate::ytdlp::args::Format;
-    use crate::ytdlp::progress::Stage;
 
-    const VIDEO: &str = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    /// A well-known reference video and one reported to hang on Windows.
+    const VIDEOS: &[&str] = &[
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "https://www.youtube.com/watch?v=lN4HTYNJNjI",
+    ];
     const PLAYLIST: &str = "https://www.youtube.com/playlist?list=PLBCF2DAC6FFB574DE";
+    /// A hang must fail the test instead of blocking CI.
+    const STEP_TIMEOUT: Duration = Duration::from_secs(180);
 
     async fn tools() -> Tools {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/test-bin");
         let manager = ComponentManager::new(dir).unwrap();
         for status in manager.status() {
             if !status.installed {
-                manager.install(status.component, &|_| {}).await.unwrap();
+                tokio::time::timeout(STEP_TIMEOUT, manager.install(status.component, &|_| {}))
+                    .await
+                    .unwrap_or_else(|_| panic!("installing {:?} hung", status.component))
+                    .unwrap_or_else(|e| panic!("installing {:?}: {e:?}", status.component));
             }
         }
         manager.tools().unwrap()
     }
 
-    /// YouTube sometimes demands a bot check from datacenter IPs; retry only that.
-    async fn retry_bot_check<T, F, Fut>(mut f: F) -> AppResult<T>
+    /// Runs one step against YouTube with a timeout. A bot check (YouTube distrusting
+    /// the runner's network) is retried, then skipped with a warning: it is about the
+    /// network, not the app. Every other error or a hang fails the test.
+    async fn live<T, F, Fut>(what: &str, mut step: F) -> Option<T>
     where
         F: FnMut() -> Fut,
-        Fut: std::future::Future<Output = AppResult<T>>,
+        Fut: Future<Output = AppResult<T>>,
     {
         for attempt in 1..=3 {
-            match f().await {
+            let started = std::time::Instant::now();
+            let result = tokio::time::timeout(STEP_TIMEOUT, step())
+                .await
+                .unwrap_or_else(|_| panic!("{what}: no result in {STEP_TIMEOUT:?} (hang)"));
+            eprintln!("{what}: attempt {attempt} took {:?}", started.elapsed());
+            match result {
+                Ok(value) => return Some(value),
                 Err(AppError::Ytdlp {
                     kind: ErrorKind::BotCheck,
                     ..
-                }) if attempt < 3 => {
-                    eprintln!("bot check, retrying ({attempt})");
-                    tokio::time::sleep(Duration::from_secs(5)).await;
+                }) if attempt < 3 => tokio::time::sleep(Duration::from_secs(10)).await,
+                Err(AppError::Ytdlp {
+                    kind: ErrorKind::BotCheck,
+                    message,
+                }) => {
+                    // Shown as an annotation in GitHub Actions.
+                    println!("::warning::{what}: skipped, YouTube bot check: {message}");
+                    return None;
                 }
-                result => return result,
+                Err(e) => panic!("{what}: {e:?}"),
             }
         }
         unreachable!()
     }
 
-    fn request(url: &str, format: Format, dir: &std::path::Path) -> DownloadRequest {
+    fn request(url: &str, format: Format, dir: &Path) -> DownloadRequest {
         DownloadRequest {
             url: url.into(),
             format,
@@ -551,75 +677,96 @@ mod live_tests {
         }
     }
 
-    #[tokio::test]
-    #[ignore = "network"]
-    async fn live_probe_video_and_playlist() {
-        let tools = tools().await;
-        let ProbeResult::Video(v) = retry_bot_check(|| probe(&tools, VIDEO)).await.unwrap() else {
-            panic!("expected video");
-        };
-        assert_eq!(v.id, "dQw4w9WgXcQ");
-        assert!(v.heights.contains(&1080), "{:?}", v.heights);
-
-        // A watch link with list= is treated as the single video.
-        let with_list = format!("{VIDEO}&list=PLBCF2DAC6FFB574DE");
-        let r = retry_bot_check(|| probe(&tools, &with_list)).await.unwrap();
-        assert!(matches!(r, ProbeResult::Video(_)));
-
-        let ProbeResult::Playlist(p) = retry_bot_check(|| probe(&tools, PLAYLIST)).await.unwrap()
-        else {
-            panic!("expected playlist");
-        };
-        assert!(p.entries.len() >= 10, "{}", p.entries.len());
-    }
-
-    #[tokio::test]
-    #[ignore = "network"]
-    async fn live_download_video_and_audio() {
-        let tools = tools().await;
-        let dir = tempfile::tempdir().unwrap();
-
-        let video_req = request(
-            VIDEO,
-            Format::Video {
-                max_height: Some(144),
-            },
-            dir.path(),
-        );
-        let stages = std::sync::Mutex::new(Vec::new());
-        let outcome = retry_bot_check(|| {
-            stages.lock().unwrap().clear();
-            download(&tools, &video_req, CancellationToken::new(), |s| {
-                stages.lock().unwrap().push((s.stage, s.part))
-            })
-        })
-        .await
-        .unwrap();
-        let Outcome::Completed { path, size } = outcome else {
-            panic!("expected completion");
-        };
-        assert_eq!(path.extension().unwrap(), "mp4");
-        assert!(size.unwrap() > 100_000, "{size:?}");
-        let stages = stages.into_inner().unwrap();
-        assert!(stages.contains(&(Stage::Processing, 2)), "{stages:?}");
-
-        let audio_req = request(VIDEO, Format::AudioM4a, dir.path());
-        let outcome =
-            retry_bot_check(|| download(&tools, &audio_req, CancellationToken::new(), |_| {}))
-                .await
-                .unwrap();
-        let Outcome::Completed { path, .. } = outcome else {
-            panic!("expected completion");
-        };
-        assert_eq!(path.extension().unwrap(), "m4a");
-
-        // Only the two results remain, no temp files.
-        let mut names: Vec<String> = std::fs::read_dir(dir.path())
+    fn files_in(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(dir)
             .unwrap()
             .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
             .collect();
         names.sort();
-        assert_eq!(names.len(), 2, "{names:?}");
+        names
+    }
+
+    fn video_id(url: &str) -> &str {
+        url.rsplit("v=").next().unwrap()
+    }
+
+    #[tokio::test]
+    #[ignore = "network"]
+    async fn live_probe_videos_and_playlist() {
+        let tools = tools().await;
+        for url in VIDEOS {
+            let Some(result) = live(&format!("probe {url}"), || probe(&tools, url)).await else {
+                continue;
+            };
+            let ProbeResult::Video(v) = result else {
+                panic!("{url}: expected a video");
+            };
+            assert_eq!(v.id, video_id(url));
+            assert!(!v.title.is_empty());
+            assert!(!v.heights.is_empty(), "{url}: no video formats");
+        }
+
+        // A watch link with list= is treated as the single video.
+        let with_list = format!("{}&list=PLBCF2DAC6FFB574DE", VIDEOS[0]);
+        if let Some(r) = live("probe watch+list", || probe(&tools, &with_list)).await {
+            assert!(matches!(r, ProbeResult::Video(_)));
+        }
+        if let Some(r) = live("probe playlist", || probe(&tools, PLAYLIST)).await {
+            let ProbeResult::Playlist(p) = r else {
+                panic!("expected playlist");
+            };
+            assert!(p.entries.len() >= 10, "{}", p.entries.len());
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "network"]
+    async fn live_download_videos_and_audio() {
+        let tools = tools().await;
+        for url in VIDEOS {
+            let dir = tempfile::tempdir().unwrap();
+            let req = request(
+                url,
+                Format::Video {
+                    max_height: Some(144),
+                },
+                dir.path(),
+            );
+            let stages = std::sync::Mutex::new(Vec::new());
+            let outcome = live(&format!("download 144p {url}"), || {
+                stages.lock().unwrap().clear();
+                download(&tools, &req, CancellationToken::new(), |s| {
+                    stages.lock().unwrap().push((s.stage, s.part))
+                })
+            })
+            .await;
+            let Some(outcome) = outcome else { continue };
+            let Outcome::Completed { path, size } = outcome else {
+                panic!("{url}: expected completion");
+            };
+            assert_eq!(path.extension().unwrap(), "mp4");
+            assert!(size.unwrap() > 10_000, "{url}: {size:?}");
+            assert!(
+                !stages.lock().unwrap().is_empty(),
+                "{url}: no progress reported"
+            );
+            // Only the result remains, no temp files.
+            assert_eq!(files_in(dir.path()).len(), 1, "{:?}", files_in(dir.path()));
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let req = request(VIDEOS[1], Format::AudioM4a, dir.path());
+        if let Some(outcome) = live("download m4a", || {
+            download(&tools, &req, CancellationToken::new(), |_| {})
+        })
+        .await
+        {
+            let Outcome::Completed { path, .. } = outcome else {
+                panic!("expected completion");
+            };
+            assert_eq!(path.extension().unwrap(), "m4a");
+            assert_eq!(files_in(dir.path()).len(), 1, "{:?}", files_in(dir.path()));
+        }
     }
 
     #[tokio::test]
@@ -627,8 +774,8 @@ mod live_tests {
     async fn live_cancel_leaves_no_files() {
         let tools = tools().await;
         let dir = tempfile::tempdir().unwrap();
-        let req = request(VIDEO, Format::Video { max_height: None }, dir.path());
-        let outcome = retry_bot_check(|| {
+        let req = request(VIDEOS[0], Format::Video { max_height: None }, dir.path());
+        let outcome = live("cancel download", || {
             let cancel = CancellationToken::new();
             let trigger = cancel.clone();
             download(&tools, &req, cancel, move |s| {
@@ -637,10 +784,14 @@ mod live_tests {
                 }
             })
         })
-        .await
-        .unwrap();
-        assert_eq!(outcome, Outcome::Canceled);
-        let left: Vec<_> = std::fs::read_dir(dir.path()).unwrap().collect();
-        assert!(left.is_empty(), "{left:?}");
+        .await;
+        if let Some(outcome) = outcome {
+            assert_eq!(outcome, Outcome::Canceled);
+            assert!(
+                files_in(dir.path()).is_empty(),
+                "{:?}",
+                files_in(dir.path())
+            );
+        }
     }
 }

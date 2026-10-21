@@ -485,10 +485,10 @@ mod tests {
         );
     }
 
-    /// Real downloads from GitHub: `cargo test -- --ignored components`.
+    /// Real downloads from GitHub: `cargo test live_install -- --ignored`.
     #[tokio::test]
     #[ignore = "network"]
-    async fn install_all_components() {
+    async fn live_install_all_components() {
         let dir = std::env::temp_dir().join(format!("cliprigo-bin-{}", std::process::id()));
         let manager = ComponentManager::new(dir.clone()).unwrap();
         let stages = Mutex::new(Vec::new());

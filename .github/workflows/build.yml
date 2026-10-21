@@ -48,6 +48,42 @@ jobs:
         working-directory: src-tauri
         run: cargo test checksums_for_all_platforms -- --ignored
 
+  # Real yt-dlp, ffmpeg and Deno against real YouTube on every OS: install the
+  # components, probe, download, cancel. Each step has a timeout, so a hang fails.
+  live:
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: live
+      - name: Install Linux deps
+        if: startsWith(matrix.platform, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: pnpm install --frozen-lockfile
+      # tauri::generate_context! embeds the built frontend.
+      - run: pnpm build
+      - name: Live tests against YouTube
+        working-directory: src-tauri
+        run: cargo test live_ -- --ignored --test-threads=1 --nocapture
+
   bundle:
     needs: lint
     strategy:

@@ -15,6 +15,19 @@ describe("errorMessage", () => {
     expect(msg.toLowerCase()).toContain("bot");
   });
 
+  it("can include the backend message in the translation", () => {
+    const msg = errorMessage(
+      {
+        code: "ytdlp_timeout",
+        message:
+          "no answer in 120 s; last output: [youtube] x: Downloading webpage",
+      },
+      tEn,
+    );
+    expect(msg).toContain("proxy");
+    expect(msg).toContain("[youtube] x: Downloading webpage");
+  });
+
   it("falls back to the raw message for unknown codes", () => {
     expect(errorMessage({ code: "weird", message: "boom" }, tEn)).toBe("boom");
   });
