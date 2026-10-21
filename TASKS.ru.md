@@ -72,14 +72,26 @@
 
 ## Этап 6. Полировка и релиз
 
-- [ ] 6.1 Ручное тестирование на Windows / macOS / Linux по критериям PRD §10
+- [ ] 6.1 Ручное тестирование на Windows / macOS / Linux по критериям PRD §10 — отложено, пока полагаемся на CI (сборка под 6 платформ + UI-сценарии); Linux проверен вручную на виртуальном дисплее
 - [x] 6.2 Юнит-тесты Rust: выбор ассета, построение аргументов, парсинг прогресса, классификация ошибок, миграции (73 теста + 5 сквозных с YouTube)
-- [x] 6.3 Иконки и метаданные установщиков (msi/nsis, dmg, AppImage/deb): своя иконка `assets/icon.svg`, рендер `scripts/render-icon.mjs`
+- [x] 6.3 Иконки и метаданные установщиков (msi/nsis, dmg, AppImage/deb): сгенерированная иконка `assets/cliprigo-app-icon.png`, PNG/ICO/ICNS и favicon через `pnpm icons`
 - [x] 6.4 Проверка размера сборки и времени старта: deb/rpm 6,6 МБ, AppImage 83 МБ (внутри WebKitGTK); окно ~120 мс, интерфейс отрисован ~0,5 с (Linux, Xvfb)
 - [x] 6.5 README: установка, скриншоты, дисклеймер, инструкция по запуску неподписанного приложения на macOS и Windows (`README.md` — EN, `README.ru.md` — RU)
-- [ ] 6.6 Релиз v0.1.0 через CI (без подписи)
+- [x] 6.6 Релиз v0.1.0 через CI (без подписи): https://github.com/hightemp/cliprigo/releases/tag/v0.1.0
+
+### Как выпускать релиз
+
+Токену CI (`GITHUB_TOKEN`) GitHub не даёт создать релиз (`Resource not accessible by integration`), хотя загружать файлы в готовый релиз разрешает. Поэтому:
+
+1. Поднять версию в `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, закоммитить.
+2. `git tag -a vX.Y.Z -m "Cliprigo vX.Y.Z" && git push origin vX.Y.Z`
+3. Сразу создать черновик: `gh release create vX.Y.Z --draft --verify-tag --title "Cliprigo vX.Y.Z" --notes-file notes.md`
+   (если сборки успели упасть — `gh run rerun <id> --failed`).
+4. Когда все 6 сборок загрузят файлы — `gh release edit vX.Y.Z --draft=false --latest`.
 
 ## После MVP
+
+- Разобраться, почему `GITHUB_TOKEN` не может создать релиз, или перейти на fine-grained токен в секрете, чтобы релиз создавался из CI целиком
 
 - Подпись и нотаризация для macOS (Apple Developer Program, $99/год); `tauri-action` умеет это из CI
 - Подпись для Windows (например, Azure Trusted Signing), чтобы убрать предупреждение SmartScreen

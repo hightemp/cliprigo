@@ -11,6 +11,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri",
+    "icons": "node scripts/generate-icons.mjs",
     "format": "prettier --write .",
     "lint": "prettier --check . && pnpm check && pnpm test",
     "test": "vitest run",

@@ -73,6 +73,8 @@ pnpm ui:preview     # UI-сценарии в headless Chrome со скриншо
 Rust-тесты: `cargo test` в `src-tauri`. Сквозные тесты с настоящим YouTube запускаются отдельно:
 `cargo test live_ -- --ignored --test-threads=1`.
 
+Иконки приложения используют [assets/cliprigo-app-icon.png](assets/cliprigo-app-icon.png), созданный через `image_gen` по [сохранённому промпту](assets/cliprigo-app-icon.prompt.txt). Команда `pnpm icons` обновляет PNG, ICO и ICNS в `src-tauri/icons/cliprigo/` и favicon браузера.
+
 Если в окружении задан `HTTP_PROXY`, приложение само добавляет `localhost`, `127.0.0.1` и `::1` в `NO_PROXY` при запуске (`src-tauri/src/net_env.rs`), так что `tauri dev` работает без настройки.
 
 Стек: Tauri 2, Svelte 5, SQLite. Требования и план: [PRD.ru.md](PRD.ru.md), [TASKS.ru.md](TASKS.ru.md).

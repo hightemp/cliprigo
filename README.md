@@ -73,6 +73,8 @@ pnpm ui:preview     # UI scenarios in headless Chrome with screenshots (needs Go
 Rust tests: `cargo test` in `src-tauri`. End-to-end tests against real YouTube are opt-in:
 `cargo test live_ -- --ignored --test-threads=1`.
 
+Application icons use [assets/cliprigo-app-icon.png](assets/cliprigo-app-icon.png), generated with `image_gen` using the [saved prompt](assets/cliprigo-app-icon.prompt.txt). Run `pnpm icons` to regenerate the PNG, ICO and ICNS assets in `src-tauri/icons/cliprigo/` and the browser favicon.
+
 If `HTTP_PROXY` is set in your environment, the app adds `localhost`, `127.0.0.1` and `::1` to `NO_PROXY` on start (`src-tauri/src/net_env.rs`), so `tauri dev` works without extra setup.
 
 Stack: Tauri 2, Svelte 5, SQLite. Product requirements and the task plan (in Russian): [PRD.ru.md](PRD.ru.md), [TASKS.ru.md](TASKS.ru.md).

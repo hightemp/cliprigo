@@ -1,0 +1,9 @@
+Use case: logo-brand.
+Asset type: production cross-platform desktop application icon for Cliprigo, a friendly YouTube video downloader with download history.
+Primary request: create one polished, distinctive application icon, not a presentation or mockup.
+Subject: a single bold ivory-white download-arrow emblem, with a clear small right-facing play triangle cut out in its upper body, integrating video playback and saving into one coherent geometric symbol. The arrow ends above a simple low rounded receiving tray, with generous spacing. Strong, instantly readable silhouette at 32 px.
+Scene/backdrop: a deep cobalt-blue rounded-square app tile, matching an existing interface accent of #3563e9; restrained gradient from clear medium blue in the upper-left to deep ultramarine in the lower-right. Outside the tile must be truly transparent.
+Style/medium: precise modern app-icon design, gently rounded geometry, very subtle sculpted depth and a soft controlled highlight on the tile edge, satin surfaces, crisp clean outlines. Professional desktop software identity. Calm and confident, not toy-like or excessively glossy.
+Composition/framing: square 1024x1024 canvas, straight front view, centered tile occupying 88% of the canvas with equal transparent margin on all four sides; central white emblem large and optically balanced, plenty of breathing room inside the tile. Perfectly symmetric overall download-arrow silhouette except for its play-shaped cutout.
+Text: none.
+Constraints: generate exactly one finished icon; genuine transparent alpha outside the rounded square, no checkerboard painted into the artwork, no background rectangle, no letters, no wordmark, no YouTube branding, no watermark, no surrounding objects, no perspective tilt, no decorative sparkles, no cast shadow beyond the tile.
