@@ -31,6 +31,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm build
+      - name: UI scenarios
+        run: pnpm ui:preview ui-preview
+      - name: Upload UI screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-preview
+          path: ui-preview
       - working-directory: src-tauri
         run: |
           cargo fmt --check
