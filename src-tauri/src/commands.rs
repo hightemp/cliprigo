@@ -6,6 +6,8 @@ use tauri::{AppHandle, Emitter, State};
 use crate::components::{Component, ComponentManager, ComponentStatus, Progress, UpdateInfo};
 use crate::db::{Db, DownloadRecord, HistoryQuery, Settings};
 use crate::error::AppResult;
+use crate::ytdlp;
+use crate::ytdlp::probe::ProbeResult;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -82,4 +84,14 @@ pub async fn components_check_updates(
     manager: State<'_, ComponentManager>,
 ) -> AppResult<Vec<UpdateInfo>> {
     manager.check_updates().await
+}
+
+/// Metadata for a pasted link: a single video or a playlist/channel listing.
+#[tauri::command]
+pub async fn video_probe(
+    manager: State<'_, ComponentManager>,
+    url: String,
+) -> AppResult<ProbeResult> {
+    let tools = manager.tools()?;
+    ytdlp::runner::probe(&tools, &ytdlp::url::normalize(&url)).await
 }

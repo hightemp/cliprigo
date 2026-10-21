@@ -17,6 +17,13 @@ pub enum AppError {
     Checksum(String),
     #[error("unsupported platform: {0}")]
     UnsupportedPlatform(String),
+    #[error("component not installed: {0}")]
+    ComponentsMissing(String),
+    #[error("{message}")]
+    Ytdlp {
+        kind: crate::ytdlp::errors::ErrorKind,
+        message: String,
+    },
     #[error("{0}")]
     Other(String),
 }
@@ -32,6 +39,8 @@ impl AppError {
             Self::RateLimited => "rate_limited",
             Self::Checksum(_) => "checksum",
             Self::UnsupportedPlatform(_) => "unsupported_platform",
+            Self::ComponentsMissing(_) => "components_missing",
+            Self::Ytdlp { kind, .. } => kind.code(),
             Self::Other(_) => "other",
         }
     }

@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::now_unix;
 use crate::error::{AppError, AppResult};
+use crate::ytdlp::args::Tools;
 use fetch::Http;
 use platform::Assets;
 
@@ -159,20 +160,24 @@ impl ComponentManager {
         self.binary_path("yt-dlp")
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "used by the yt-dlp runner (stage 3)")
-    )]
     pub fn ffmpeg_path(&self) -> PathBuf {
         self.binary_path("ffmpeg")
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "used by the yt-dlp runner (stage 3)")
-    )]
     pub fn deno_path(&self) -> PathBuf {
         self.binary_path("deno")
+    }
+
+    /// Paths for running yt-dlp; fails until every component is installed.
+    pub fn tools(&self) -> AppResult<Tools> {
+        if let Some(missing) = Component::ALL.into_iter().find(|c| !self.is_installed(*c)) {
+            return Err(AppError::ComponentsMissing(format!("{missing:?}")));
+        }
+        Ok(Tools {
+            ytdlp: self.ytdlp_path(),
+            ffmpeg: self.ffmpeg_path(),
+            deno: self.deno_path(),
+        })
     }
 
     fn is_installed(&self, c: Component) -> bool {
@@ -348,7 +353,7 @@ impl ComponentManager {
             let path = self.binary_path(name);
             let output = tokio::time::timeout(
                 SMOKE_TEST_TIMEOUT,
-                crate::process::command(&path).arg(c.version_arg()).output(),
+                crate::process::output(crate::process::command(&path).arg(c.version_arg())),
             )
             .await
             .map_err(|_| AppError::Other(format!("{name} did not respond")))??;

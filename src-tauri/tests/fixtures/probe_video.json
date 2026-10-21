@@ -1,0 +1,476 @@
+{
+  "_type": "video",
+  "id": "dQw4w9WgXcQ",
+  "title": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)",
+  "uploader": "Rick Astley",
+  "channel": "Rick Astley",
+  "duration": 213,
+  "thumbnail": "https://i.ytimg.com/vi_webp/dQw4w9WgXcQ/maxresdefault.webp",
+  "webpage_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "extractor_key": "Youtube",
+  "formats": [
+    {
+      "format_id": "sb3",
+      "ext": "mhtml",
+      "vcodec": "none",
+      "acodec": "none",
+      "height": 27,
+      "width": 48,
+      "protocol": "mhtml"
+    },
+    {
+      "format_id": "sb2",
+      "ext": "mhtml",
+      "vcodec": "none",
+      "acodec": "none",
+      "height": 45,
+      "width": 80,
+      "protocol": "mhtml"
+    },
+    {
+      "format_id": "sb1",
+      "ext": "mhtml",
+      "vcodec": "none",
+      "acodec": "none",
+      "height": 90,
+      "width": 160,
+      "protocol": "mhtml"
+    },
+    {
+      "format_id": "sb0",
+      "ext": "mhtml",
+      "vcodec": "none",
+      "acodec": "none",
+      "height": 180,
+      "width": 320,
+      "protocol": "mhtml"
+    },
+    {
+      "format_id": "233",
+      "ext": "mp4",
+      "vcodec": "none",
+      "protocol": "m3u8_native"
+    },
+    {
+      "format_id": "234",
+      "ext": "mp4",
+      "vcodec": "none",
+      "protocol": "m3u8_native"
+    },
+    {
+      "format_id": "139",
+      "ext": "m4a",
+      "vcodec": "none",
+      "acodec": "mp4a.40.5",
+      "height": null,
+      "width": null,
+      "filesize": 1300631,
+      "protocol": "https"
+    },
+    {
+      "format_id": "249",
+      "ext": "webm",
+      "vcodec": "none",
+      "acodec": "opus",
+      "height": null,
+      "width": null,
+      "filesize": 1231355,
+      "protocol": "https"
+    },
+    {
+      "format_id": "250",
+      "ext": "webm",
+      "vcodec": "none",
+      "acodec": "opus",
+      "height": null,
+      "width": null,
+      "filesize": 1628559,
+      "protocol": "https"
+    },
+    {
+      "format_id": "140",
+      "ext": "m4a",
+      "vcodec": "none",
+      "acodec": "mp4a.40.2",
+      "height": null,
+      "width": null,
+      "filesize": 3449447,
+      "protocol": "https"
+    },
+    {
+      "format_id": "251",
+      "ext": "webm",
+      "vcodec": "none",
+      "acodec": "opus",
+      "height": null,
+      "width": null,
+      "filesize": 3433755,
+      "protocol": "https"
+    },
+    {
+      "format_id": "602",
+      "ext": "mp4",
+      "vcodec": "vp09.00.10.08",
+      "acodec": "none",
+      "height": 144,
+      "width": 256,
+      "protocol": "m3u8_native"
+    },
+    {
+      "format_id": "269",
+      "ext": "mp4",
+      "vcodec": "avc1.4D400C",
+      "acodec": "none",
+      "height": 144,
+      "width": 256,
+      "protocol": "m3u8_native"
+    },
+    {
+      "format_id": "160",
+      "ext": "mp4",
+      "vcodec": "avc1.4D400C",
+      "acodec": "none",
+      "height": 144,
+      "width": 256,
+      "filesize": 2058142,
+      "protocol": "https"
+    },
+    {
+      "format_id": "603",
+      "ext": "mp4",
+      "vcodec": "vp09.00.11.08",
+      "acodec": "none",
+      "height": 144,
+      "width": 256,
+      "protocol": "m3u8_native"
+    },
+    {
+      "format_id": "278",
+      "ext": "webm",
+      "vcodec": "vp9",
+      "acodec": "none",
+      "height": 144,
+      "width": 256,
+      "filesize": 1540844,
+      "protocol": "https"
+    },
+    {
+      "format_id": "394",
+      "ext": "mp4",
+      "vcodec": "av01.0.00M.08",
+      "acodec": "none",
+      "height": 144,
+      "width": 256,
+      "filesize": 1505504,
+      "protocol": "https"
+    },
+    {
+      "format_id": "229",
+      "ext": "mp4",
+      "vcodec": "avc1.4D4015",
+      "acodec": "none",
+      "height": 240,
+      "width": 426,
+      "protocol": "m3u8_native"
+    },
+    {
+      "format_id": "133",
+      "ext": "mp4",
+      "vcodec": "avc1.4D4015",
+      "acodec": "none",
+      "height": 240,
+      "width": 426,
+      "filesize": 4310122,
+      "protocol": "https"
+    },
+    {
+      "format_id": "604",
+      "ext": "mp4",
+      "vcodec": "vp09.00.20.08",
+      "acodec": "none",
+      "height": 240,
+      "width": 426,
+      "protocol": "m3u8_native"
+    },
+    {
+      "format_id": "242",
+      "ext": "webm",
+      "vcodec": "vp9",
+      "acodec": "none",
+      "height": 240,
+      "width": 426,
+      "filesize": 2706929,
+      "protocol": "https"
+    },
+    {
+      "format_id": "395",
+      "ext": "mp4",
+      "vcodec": "av01.0.00M.08",
+      "acodec": "none",
+      "height": 240,
+      "width": 426,
+      "filesize": 3095447,
+      "protocol": "https"
+    },
+    {
+      "format_id": "230",
+      "ext": "mp4",
+      "vcodec": "avc1.4D401E",
+      "acodec": "none",
+      "height": 360,
+      "width": 640,
+      "protocol": "m3u8_native"
+    },
+    {
+      "format_id": "134",
+      "ext": "mp4",
+      "vcodec": "avc1.4D401E",
+      "acodec": "none",
+      "height": 360,
+      "width": 640,
+      "filesize": 8390921,
+      "protocol": "https"
+    },
+    {
+      "format_id": "18",
+      "ext": "mp4",
+      "vcodec": "avc1.42001E",
+      "acodec": "mp4a.40.2",
+      "height": 360,
+      "width": 640,
+      "filesize": null,
+      "protocol": "https"
+    },
+    {
+      "format_id": "605",
+      "ext": "mp4",
+      "vcodec": "vp09.00.21.08",
+      "acodec": "none",
+      "height": 360,
+      "width": 640,
+      "protocol": "m3u8_native"
+    },
+    {
+      "format_id": "243",
+      "ext": "webm",
+      "vcodec": "vp9",
+      "acodec": "none",
+      "height": 360,
+      "width": 640,
+      "filesize": 6014765,
+      "protocol": "https"
+    },
+    {
+      "format_id": "396",
+      "ext": "mp4",
+      "vcodec": "av01.0.01M.08",
+      "acodec": "none",
+      "height": 360,
+      "width": 640,
+      "filesize": 5685561,
+      "protocol": "https"
+    },
+    {
+      "format_id": "231",
+      "ext": "mp4",
+      "vcodec": "avc1.4D401E",
+      "acodec": "none",
+      "height": 480,
+      "width": 854,
+      "protocol": "m3u8_native"
+    },
+    {
+      "format_id": "135",
+      "ext": "mp4",
+      "vcodec": "avc1.4D401E",
+      "acodec": "none",
+      "height": 480,
+      "width": 854,
+      "filesize": 14103519,
+      "protocol": "https"
+    },
+    {
+      "format_id": "606",
+      "ext": "mp4",
+      "vcodec": "vp09.00.30.08",
+      "acodec": "none",
+      "height": 480,
+      "width": 854,
+      "protocol": "m3u8_native"
+    },
+    {
+      "format_id": "244",
+      "ext": "webm",
+      "vcodec": "vp9",
+      "acodec": "none",
+      "height": 480,
+      "width": 854,
+      "filesize": 9381481,
+      "protocol": "https"
+    },
+    {
+      "format_id": "397",
+      "ext": "mp4",
+      "vcodec": "av01.0.04M.08",
+      "acodec": "none",
+      "height": 480,
+      "width": 854,
+      "filesize": 9874826,
+      "protocol": "https"
+    },
+    {
+      "format_id": "232",
+      "ext": "mp4",
+      "vcodec": "avc1.4D401F",
+      "acodec": "none",
+      "height": 720,
+      "width": 1280,
+      "protocol": "m3u8_native"
+    },
+    {
+      "format_id": "136",
+      "ext": "mp4",
+      "vcodec": "avc1.4D401F",
+      "acodec": "none",
+      "height": 720,
+      "width": 1280,
+      "filesize": 26455880,
+      "protocol": "https"
+    },
+    {
+      "format_id": "609",
+      "ext": "mp4",
+      "vcodec": "vp09.00.31.08",
+      "acodec": "none",
+      "height": 720,
+      "width": 1280,
+      "protocol": "m3u8_native"
+    },
+    {
+      "format_id": "247",
+      "ext": "webm",
+      "vcodec": "vp9",
+      "acodec": "none",
+      "height": 720,
+      "width": 1280,
+      "filesize": 17686717,
+      "protocol": "https"
+    },
+    {
+      "format_id": "398",
+      "ext": "mp4",
+      "vcodec": "av01.0.05M.08",
+      "acodec": "none",
+      "height": 720,
+      "width": 1280,
+      "filesize": 17593076,
+      "protocol": "https"
+    },
+    {
+      "format_id": "270",
+      "ext": "mp4",
+      "vcodec": "avc1.640028",
+      "acodec": "none",
+      "height": 1080,
+      "width": 1920,
+      "protocol": "m3u8_native"
+    },
+    {
+      "format_id": "137",
+      "ext": "mp4",
+      "vcodec": "avc1.640028",
+      "acodec": "none",
+      "height": 1080,
+      "width": 1920,
+      "filesize": 80911999,
+      "protocol": "https"
+    },
+    {
+      "format_id": "614",
+      "ext": "mp4",
+      "vcodec": "vp09.00.40.08",
+      "acodec": "none",
+      "height": 1080,
+      "width": 1920,
+      "protocol": "m3u8_native"
+    },
+    {
+      "format_id": "248",
+      "ext": "webm",
+      "vcodec": "vp9",
+      "acodec": "none",
+      "height": 1080,
+      "width": 1920,
+      "filesize": 30846580,
+      "protocol": "https"
+    },
+    {
+      "format_id": "399",
+      "ext": "mp4",
+      "vcodec": "av01.0.08M.08",
+      "acodec": "none",
+      "height": 1080,
+      "width": 1920,
+      "filesize": 30415996,
+      "protocol": "https"
+    },
+    {
+      "format_id": "620",
+      "ext": "mp4",
+      "vcodec": "vp09.00.50.08",
+      "acodec": "none",
+      "height": 1440,
+      "width": 2560,
+      "protocol": "m3u8_native"
+    },
+    {
+      "format_id": "271",
+      "ext": "webm",
+      "vcodec": "vp9",
+      "acodec": "none",
+      "height": 1440,
+      "width": 2560,
+      "filesize": 151103346,
+      "protocol": "https"
+    },
+    {
+      "format_id": "400",
+      "ext": "mp4",
+      "vcodec": "av01.0.12M.08",
+      "acodec": "none",
+      "height": 1440,
+      "width": 2560,
+      "filesize": 122168277,
+      "protocol": "https"
+    },
+    {
+      "format_id": "625",
+      "ext": "mp4",
+      "vcodec": "vp09.00.50.08",
+      "acodec": "none",
+      "height": 2160,
+      "width": 3840,
+      "protocol": "m3u8_native"
+    },
+    {
+      "format_id": "313",
+      "ext": "webm",
+      "vcodec": "vp9",
+      "acodec": "none",
+      "height": 2160,
+      "width": 3840,
+      "filesize": 358608461,
+      "protocol": "https"
+    },
+    {
+      "format_id": "401",
+      "ext": "mp4",
+      "vcodec": "av01.0.12M.08",
+      "acodec": "none",
+      "height": 2160,
+      "width": 3840,
+      "filesize": 240334643,
+      "protocol": "https"
+    }
+  ]
+}

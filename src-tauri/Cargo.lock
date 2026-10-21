@@ -561,6 +561,7 @@ dependencies = [
  "dirs",
  "futures-util",
  "hex",
+ "libc",
  "md-5",
  "reqwest",
  "rusqlite",
@@ -571,11 +572,14 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
+ "tokio-util",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "url",
  "zip",
 ]
 

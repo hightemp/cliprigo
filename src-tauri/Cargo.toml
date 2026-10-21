@@ -36,6 +36,8 @@ tracing-appender = "0.2.5"
 dirs = "7.0.0"
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "stream", "json", "http2"] }
 md-5 = "0.11.0"
+url = "2.5.8"
+tokio-util = "0.7.20"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
@@ -45,3 +47,9 @@ lto = true
 opt-level = 3
 panic = "abort"
 strip = true
+
+[target."cfg(unix)".dependencies]
+libc = "0.2.191"
+
+[dev-dependencies]
+tempfile = "3.27.0"

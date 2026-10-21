@@ -3,6 +3,7 @@ mod components;
 mod db;
 mod error;
 mod process;
+mod ytdlp;
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -91,6 +92,7 @@ pub fn run() {
             commands::components_status,
             commands::components_install,
             commands::components_check_updates,
+            commands::video_probe,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
