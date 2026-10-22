@@ -698,6 +698,8 @@ mod live_tests {
         "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
         "https://www.youtube.com/watch?v=lN4HTYNJNjI",
     ];
+    /// Has a "Premium" HLS format that the old sort order picked (seen on Windows).
+    const PREMIUM_HLS_VIDEO: &str = "https://www.youtube.com/watch?v=CliFaMi-gpY";
     const PLAYLIST: &str = "https://www.youtube.com/playlist?list=PLBCF2DAC6FFB574DE";
     /// A hang must fail the test instead of blocking CI.
     const STEP_TIMEOUT: Duration = Duration::from_secs(180);
@@ -848,6 +850,39 @@ mod live_tests {
             };
             assert_eq!(path.extension().unwrap(), "m4a");
             assert_eq!(files_in(dir.path()).len(), 1, "{:?}", files_in(dir.path()));
+        }
+    }
+
+    /// The protocols yt-dlp would pick for a download, without downloading.
+    async fn chosen_protocols(tools: &Tools, req: &DownloadRequest) -> AppResult<String> {
+        let mut args = crate::ytdlp::args::download_args(tools, req);
+        let url_at = args.len() - 2;
+        // Explicit: the after_move --print in download_args turns implicit simulate off.
+        let extra = ["--simulate", "--print", "%(protocol)s"];
+        args.splice(url_at..url_at, extra.map(OsString::from));
+        let output = build_command(tools, args).output().await?;
+        if !output.status.success() {
+            return Err(errors::classify(&String::from_utf8_lossy(&output.stderr)).into());
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    }
+
+    /// YouTube's "Premium" HLS formats were picked over https ones and downloaded
+    /// ~90x slower through a proxy (23 KiB/s vs 2 MiB/s).
+    #[tokio::test]
+    #[ignore = "network"]
+    async fn live_best_video_avoids_hls() {
+        let tools = tools().await;
+        let dir = tempfile::tempdir().unwrap();
+        for url in VIDEOS.iter().chain([&PREMIUM_HLS_VIDEO]) {
+            let req = request(url, Format::Video { max_height: None }, dir.path());
+            let Some(protocols) =
+                live(&format!("formats {url}"), || chosen_protocols(&tools, &req)).await
+            else {
+                continue;
+            };
+            eprintln!("{url}: {protocols}");
+            assert!(!protocols.contains("m3u8"), "{url}: {protocols}");
         }
     }
 

@@ -110,6 +110,8 @@ pub fn download_args(tools: &Tools, req: &DownloadRequest) -> Vec<OsString> {
         "--progress",
         "--embed-metadata",
     ]);
+    // Fragmented formats (HLS/DASH) download one tiny piece at a time otherwise.
+    push(&["-N", "4"]);
     push(&[
         "--progress-template",
         &format!("download:{DOWNLOAD_PREFIX}%(progress)j"),
@@ -123,8 +125,10 @@ pub fn download_args(tools: &Tools, req: &DownloadRequest) -> Vec<OsString> {
     match req.format {
         Format::Video { max_height } => {
             let sort = match max_height {
-                Some(h) => format!("res:{h},ext:mp4:m4a"),
-                None => "res,ext:mp4:m4a".to_string(),
+                // `proto` prefers plain https over HLS (m3u8): YouTube's "Premium"
+                // HLS formats are several times larger and crawl through proxies.
+                Some(h) => format!("res:{h},proto,ext:mp4:m4a"),
+                None => "res,proto,ext:mp4:m4a".to_string(),
             };
             push(&[
                 "-f",
@@ -280,13 +284,23 @@ mod tests {
     }
 
     #[test]
+    fn fragments_are_fetched_in_parallel() {
+        for format in [Format::Video { max_height: None }, Format::AudioMp3] {
+            let args = strings(download_args(&test_tools(), &request(format)));
+            assert!(has_pair(&args, "-N", "4"));
+        }
+    }
+
+    #[test]
     fn video_formats() {
         let best = strings(download_args(
             &test_tools(),
             &request(Format::Video { max_height: None }),
         ));
         assert!(has_pair(&best, "-f", "bv*+ba/b"));
-        assert!(has_pair(&best, "-S", "res,ext:mp4:m4a"));
+        // proto: progressive https beats HLS (m3u8), which is fetched in tiny
+        // fragments and was ~90x slower through a proxy.
+        assert!(has_pair(&best, "-S", "res,proto,ext:mp4:m4a"));
         assert!(has_pair(&best, "--merge-output-format", "mp4"));
         assert!(!best.contains(&"-x".to_string()));
 
@@ -296,7 +310,7 @@ mod tests {
                 max_height: Some(720),
             }),
         ));
-        assert!(has_pair(&hd, "-S", "res:720,ext:mp4:m4a"));
+        assert!(has_pair(&hd, "-S", "res:720,proto,ext:mp4:m4a"));
     }
 
     #[test]
