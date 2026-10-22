@@ -314,7 +314,7 @@ mod tests {
 
     use super::*;
     use crate::error::AppError;
-    use crate::ytdlp::args::Format;
+    use crate::ytdlp::args::{Codec, Format};
     use crate::ytdlp::errors::ErrorKind;
     use crate::ytdlp::probe::ProbeResult;
     use crate::ytdlp::progress::Stage;
@@ -357,7 +357,10 @@ mod tests {
     fn request(out: &Path) -> DownloadRequest {
         DownloadRequest {
             url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ".into(),
-            format: Format::Video { max_height: None },
+            format: Format::Video {
+                max_height: None,
+                codec: Codec::Auto,
+            },
             output_dir: out.to_path_buf(),
             filename_template: "%(title)s [%(id)s].%(ext)s".into(),
         }
@@ -691,7 +694,7 @@ mod live_tests {
 
     use super::*;
     use crate::components::ComponentManager;
-    use crate::ytdlp::args::Format;
+    use crate::ytdlp::args::{Codec, Format};
 
     /// A well-known reference video and one reported to hang on Windows.
     const VIDEOS: &[&str] = &[
@@ -813,6 +816,7 @@ mod live_tests {
                 url,
                 Format::Video {
                     max_height: Some(144),
+                    codec: Codec::Auto,
                 },
                 dir.path(),
             );
@@ -872,20 +876,29 @@ mod live_tests {
     /// win; above that only VP9/AV1 exist, so "best" may still pick them.
     #[tokio::test]
     #[ignore = "network"]
-    async fn live_video_formats_are_https_h264() {
+    async fn live_video_formats_follow_codec() {
         let tools = tools().await;
         let dir = tempfile::tempdir().unwrap();
         for url in VIDEOS.iter().chain([&PREMIUM_HLS_VIDEO]) {
-            for max_height in [None, Some(1080)] {
-                let req = request(url, Format::Video { max_height }, dir.path());
-                let what = format!("formats {max_height:?} {url}");
+            // (max height, codec, codec string expected in yt-dlp's vcodec)
+            let cases = [
+                (Some(1080), Codec::Auto, Some("avc1")),
+                (None, Codec::Auto, None),
+                // Compatible wins over resolution, even on 4K videos.
+                (None, Codec::H264, Some("avc1")),
+                (Some(1080), Codec::Av1, Some("av01")),
+                (Some(1080), Codec::Vp9, Some("vp")),
+            ];
+            for (max_height, codec, expected) in cases {
+                let req = request(url, Format::Video { max_height, codec }, dir.path());
+                let what = format!("formats {max_height:?} {codec:?} {url}");
                 let Some(chosen) = live(&what, || chosen_formats(&tools, &req)).await else {
                     continue;
                 };
                 eprintln!("{what}: {chosen}");
                 assert!(!chosen.contains("m3u8"), "{what}: {chosen}");
-                if max_height.is_some() {
-                    assert!(chosen.contains("avc1"), "{what}: {chosen}");
+                if let Some(expected) = expected {
+                    assert!(chosen.contains(expected), "{what}: {chosen}");
                 }
             }
         }
@@ -896,7 +909,14 @@ mod live_tests {
     async fn live_cancel_leaves_no_files() {
         let tools = tools().await;
         let dir = tempfile::tempdir().unwrap();
-        let req = request(VIDEOS[0], Format::Video { max_height: None }, dir.path());
+        let req = request(
+            VIDEOS[0],
+            Format::Video {
+                max_height: None,
+                codec: Codec::Auto,
+            },
+            dir.path(),
+        );
         let canceled_at = std::sync::Mutex::new(None);
         let outcome = live("cancel download", || {
             let cancel = CancellationToken::new();

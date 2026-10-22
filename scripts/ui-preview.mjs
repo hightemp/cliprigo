@@ -41,6 +41,7 @@ function record(id, overrides = {}) {
     thumbnailUrl: thumb(id * 47),
     format: "video",
     quality: null,
+    codec: "auto",
     filePath: null,
     fileSize: null,
     status: "queued",
@@ -58,6 +59,7 @@ const settings = (language) => ({
   downloadDir: "/home/user/Downloads",
   defaultFormat: "video",
   defaultQuality: null,
+  defaultCodec: "auto",
   concurrency: 2,
   filenameTemplate: "%(title)s [%(id)s].%(ext)s",
   language,
@@ -242,7 +244,11 @@ const scenarios = [
 
       await page.getByRole("button", { name: "Скачать" }).last().click();
       const add = await check.call("queue_add");
-      check.equal(add.args.items[0].format, { kind: "video", maxHeight: 1080 });
+      check.equal(add.args.items[0].format, {
+        kind: "video",
+        maxHeight: 1080,
+        codec: "auto",
+      });
       check.equal(add.args.items[0].videoId, VIDEO.id);
       await check.text("Добавлено в очередь");
     },
@@ -701,6 +707,48 @@ const scenarios = [
         .getByRole("button", { name: "Скопировать подробности" })
         .click();
       await check.call("diagnostics");
+    },
+  },
+  {
+    name: "18-codec-picker",
+    theme: "light",
+    responses: ready("ru", {
+      video_probe: VIDEO,
+      settings_get: { ...settings("ru"), defaultCodec: "av1" },
+    }),
+    async run(page, check) {
+      await page.fill("input[type=url]", VIDEO.url);
+      await page.keyboard.press("Enter");
+      await check.text(VIDEO.title);
+      // The default comes from the settings.
+      const codec = page.getByLabel("Кодек");
+      check.equal(await codec.inputValue(), "av1");
+      await check.text("AV1 Video Extension");
+      await codec.selectOption("h264");
+      await check.text("открывается в любом плеере");
+      await page.screenshot({ path: `${OUT}/18-codec-picker.png` });
+      await page.getByRole("button", { name: "Скачать" }).last().click();
+      const add = await check.call("queue_add");
+      check.equal(add.args.items[0].format, {
+        kind: "video",
+        maxHeight: null,
+        codec: "h264",
+      });
+    },
+    noFinalShot: true,
+  },
+  {
+    name: "19-settings-codec",
+    theme: "dark",
+    responses: ready("en", {
+      settings_set: { ...settings("en"), defaultCodec: "vp9" },
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Settings" }).click();
+      await page.getByLabel("Default codec").selectOption("vp9");
+      const set = await check.call("settings_set");
+      check.equal(set.args.settings.defaultCodec, "vp9");
+      await check.text("VP9 Video Extensions");
     },
   },
 ];

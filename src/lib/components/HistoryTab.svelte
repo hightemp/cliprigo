@@ -74,7 +74,7 @@
   }
 
   async function downloadAgain(item: HistoryItem) {
-    const format = formatFromRecord(item.format, item.quality);
+    const format = formatFromRecord(item.format, item.quality, item.codec);
     if (!format) return;
     await run(async () => {
       await api.queueAdd([

@@ -12,6 +12,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::db::{Db, DownloadRecord, DownloadStatus, NewDownload};
 use crate::error::{AppError, AppResult};
+#[cfg(test)]
+use crate::ytdlp::args::Codec;
 use crate::ytdlp::args::{DownloadRequest, Format};
 use crate::ytdlp::progress::{Snapshot, Stage};
 use crate::ytdlp::runner::Outcome;
@@ -129,6 +131,7 @@ impl Queue {
                 thumbnail_url: item.thumbnail_url,
                 format: item.format.db_name().into(),
                 quality: item.format.quality(),
+                codec: item.format.codec().map(String::from),
                 playlist_id: item.playlist_id,
                 playlist_title: item.playlist_title,
                 output_dir: Some(output_dir.clone()),
@@ -190,7 +193,7 @@ impl Queue {
                 record.status
             )));
         }
-        let format = Format::from_db(&record.format, record.quality)
+        let format = Format::from_db(&record.format, record.quality, record.codec.as_deref())
             .ok_or_else(|| AppError::Other(format!("unknown format {}", record.format)))?;
         let settings = self.inner.db.load_settings()?;
         let request = DownloadRequest {
@@ -550,7 +553,10 @@ mod tests {
             thumbnail_url: None,
             playlist_id: None,
             playlist_title: None,
-            format: Format::Video { max_height: None },
+            format: Format::Video {
+                max_height: None,
+                codec: Codec::Auto,
+            },
             output_dir: None,
         }
     }
@@ -930,6 +936,7 @@ mod live_tests {
             .add(vec![
                 item(Format::Video {
                     max_height: Some(144),
+                    codec: Codec::Auto,
                 }),
                 item(Format::AudioM4a),
             ])

@@ -72,6 +72,8 @@ pub struct DownloadRecord {
     pub created_at: i64,
     pub completed_at: Option<i64>,
     pub output_dir: Option<String>,
+    /// Video codec preference (`auto`, `h264`, `av1`, `vp9`); `None` for audio and old rows.
+    pub codec: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -88,6 +90,7 @@ pub struct NewDownload {
     pub playlist_id: Option<String>,
     pub playlist_title: Option<String>,
     pub output_dir: Option<String>,
+    pub codec: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -102,7 +105,7 @@ pub struct HistoryQuery {
 
 const COLUMNS: &str = "id, video_id, url, title, uploader, duration, thumbnail_url, format, \
     quality, file_path, file_size, status, error, playlist_id, playlist_title, created_at, \
-    completed_at, output_dir";
+    completed_at, output_dir, codec";
 
 const DEFAULT_LIMIT: i64 = 50;
 const MAX_LIMIT: i64 = 500;
@@ -130,6 +133,7 @@ fn from_row(row: &Row) -> rusqlite::Result<DownloadRecord> {
         created_at: row.get(15)?,
         completed_at: row.get(16)?,
         output_dir: row.get(17)?,
+        codec: row.get(18)?,
     })
 }
 
@@ -138,8 +142,8 @@ impl Db {
         let conn = self.conn();
         conn.execute(
             "INSERT INTO downloads (video_id, url, title, uploader, duration, thumbnail_url, \
-             format, quality, status, playlist_id, playlist_title, created_at, output_dir) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+             format, quality, status, playlist_id, playlist_title, created_at, output_dir, codec) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             params![
                 d.video_id,
                 d.url,
@@ -154,6 +158,7 @@ impl Db {
                 d.playlist_title,
                 now_unix(),
                 d.output_dir,
+                d.codec,
             ],
         )?;
         let id = conn.last_insert_rowid();
@@ -348,6 +353,20 @@ mod tests {
         assert_eq!(db.delete_download(a.id).unwrap().unwrap().id, a.id);
         assert!(db.get_download(a.id).unwrap().is_none());
         assert!(db.delete_download(a.id).unwrap().is_none());
+    }
+
+    #[test]
+    fn codec_roundtrip() {
+        let db = Db::open_in_memory().unwrap();
+        assert_eq!(db.insert_download(&new("a", "x")).unwrap().codec, None);
+        let mut d = new("b", "x");
+        d.codec = Some("h264".into());
+        let r = db.insert_download(&d).unwrap();
+        assert_eq!(r.codec.as_deref(), Some("h264"));
+        assert_eq!(
+            db.get_download(r.id).unwrap().unwrap().codec.as_deref(),
+            Some("h264")
+        );
     }
 
     #[test]

@@ -17,6 +17,52 @@ pub struct Tools {
     pub proxy: Option<String>,
 }
 
+/// Preferred video codec. YouTube has H.264 only up to 1080p; above that only VP9/AV1.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Codec {
+    /// Best resolution; H.264 when it is as good, so up to 1080p it plays everywhere.
+    #[default]
+    Auto,
+    /// Plays everywhere, even if that means a lower resolution.
+    H264,
+    /// Smallest files; needs a recent player or an extension on Windows.
+    Av1,
+    Vp9,
+}
+
+impl Codec {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::H264 => "h264",
+            Self::Av1 => "av1",
+            Self::Vp9 => "vp9",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        [Self::Auto, Self::H264, Self::Av1, Self::Vp9]
+            .into_iter()
+            .find(|c| c.name() == name)
+    }
+
+    /// yt-dlp `-S` order. `proto` puts plain https before HLS (m3u8): YouTube's
+    /// "Premium" HLS formats are several times larger and crawl through proxies.
+    fn sort(self, max_height: Option<u32>) -> String {
+        let res = match max_height {
+            Some(h) => format!("res:{h}"),
+            None => "res".into(),
+        };
+        match self {
+            Self::Auto => format!("{res},proto,vcodec:h264,ext:mp4:m4a"),
+            Self::H264 => format!("vcodec:h264,{res},proto,ext:mp4:m4a"),
+            Self::Av1 => format!("{res},proto,vcodec:av01,ext:mp4:m4a"),
+            Self::Vp9 => format!("{res},proto,vcodec:vp9,ext:mp4:m4a"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Format {
@@ -24,6 +70,8 @@ pub enum Format {
     #[serde(rename_all = "camelCase")]
     Video {
         max_height: Option<u32>,
+        #[serde(default)]
+        codec: Codec,
     },
     AudioMp3,
     AudioM4a,
@@ -39,11 +87,12 @@ impl Format {
         }
     }
 
-    /// Inverse of `db_name`/`quality`, for retrying a stored download.
-    pub fn from_db(name: &str, quality: Option<i64>) -> Option<Self> {
+    /// Inverse of `db_name`/`quality`/`codec`, for retrying a stored download.
+    pub fn from_db(name: &str, quality: Option<i64>, codec: Option<&str>) -> Option<Self> {
         Some(match name {
             "video" => Self::Video {
                 max_height: quality.and_then(|q| u32::try_from(q).ok()),
+                codec: codec.and_then(Codec::from_name).unwrap_or_default(),
             },
             "audio_mp3" => Self::AudioMp3,
             "audio_m4a" => Self::AudioM4a,
@@ -54,7 +103,15 @@ impl Format {
     /// Value stored in `downloads.quality`.
     pub fn quality(self) -> Option<i64> {
         match self {
-            Self::Video { max_height } => max_height.map(i64::from),
+            Self::Video { max_height, .. } => max_height.map(i64::from),
+            Self::AudioMp3 | Self::AudioM4a => None,
+        }
+    }
+
+    /// Value stored in `downloads.codec`.
+    pub fn codec(self) -> Option<&'static str> {
+        match self {
+            Self::Video { codec, .. } => Some(codec.name()),
             Self::AudioMp3 | Self::AudioM4a => None,
         }
     }
@@ -123,14 +180,8 @@ pub fn download_args(tools: &Tools, req: &DownloadRequest) -> Vec<OsString> {
     push(&["--print", &format!("after_move:{FILE_PREFIX}%(filepath)s")]);
     push(&["-o", &req.filename_template]);
     match req.format {
-        Format::Video { max_height } => {
-            let sort = match max_height {
-                // `proto` prefers plain https over HLS (m3u8): YouTube's "Premium"
-                // HLS formats are several times larger and crawl through proxies.
-                // H.264 plays everywhere; AV1 needs an extra codec on Windows 10.
-                Some(h) => format!("res:{h},proto,vcodec:h264,ext:mp4:m4a"),
-                None => "res,proto,vcodec:h264,ext:mp4:m4a".to_string(),
-            };
+        Format::Video { max_height, codec } => {
+            let sort = codec.sort(max_height);
             push(&[
                 "-f",
                 "bv*+ba/b",
@@ -255,7 +306,10 @@ mod tests {
     fn download_args_report_progress_and_final_path() {
         let args = strings(download_args(
             &test_tools(),
-            &request(Format::Video { max_height: None }),
+            &request(Format::Video {
+                max_height: None,
+                codec: Codec::Auto,
+            }),
         ));
         for flag in [
             "--no-playlist",
@@ -286,7 +340,13 @@ mod tests {
 
     #[test]
     fn fragments_are_fetched_in_parallel() {
-        for format in [Format::Video { max_height: None }, Format::AudioMp3] {
+        for format in [
+            Format::Video {
+                max_height: None,
+                codec: Codec::Auto,
+            },
+            Format::AudioMp3,
+        ] {
             let args = strings(download_args(&test_tools(), &request(format)));
             assert!(has_pair(&args, "-N", "4"));
         }
@@ -296,7 +356,10 @@ mod tests {
     fn video_formats() {
         let best = strings(download_args(
             &test_tools(),
-            &request(Format::Video { max_height: None }),
+            &request(Format::Video {
+                max_height: None,
+                codec: Codec::Auto,
+            }),
         ));
         assert!(has_pair(&best, "-f", "bv*+ba/b"));
         // proto: progressive https beats HLS (m3u8), which is fetched in tiny
@@ -310,9 +373,45 @@ mod tests {
             &test_tools(),
             &request(Format::Video {
                 max_height: Some(720),
+                codec: Codec::Auto,
             }),
         ));
         assert!(has_pair(&hd, "-S", "res:720,proto,vcodec:h264,ext:mp4:m4a"));
+    }
+
+    #[test]
+    fn codec_sorts() {
+        let sort = |max_height, codec| {
+            let args = strings(download_args(
+                &test_tools(),
+                &request(Format::Video { max_height, codec }),
+            ));
+            let at = args.iter().position(|a| a == "-S").unwrap();
+            args[at + 1].clone()
+        };
+        // Auto: best resolution first; H.264 only when it is as good.
+        assert_eq!(sort(None, Codec::Auto), "res,proto,vcodec:h264,ext:mp4:m4a");
+        // Compatible: H.264 first, even at a lower resolution (YouTube stops at 1080p).
+        assert_eq!(sort(None, Codec::H264), "vcodec:h264,res,proto,ext:mp4:m4a");
+        assert_eq!(
+            sort(Some(720), Codec::H264),
+            "vcodec:h264,res:720,proto,ext:mp4:m4a"
+        );
+        assert_eq!(sort(None, Codec::Av1), "res,proto,vcodec:av01,ext:mp4:m4a");
+        assert_eq!(
+            sort(Some(1080), Codec::Vp9),
+            "res:1080,proto,vcodec:vp9,ext:mp4:m4a"
+        );
+    }
+
+    #[test]
+    fn codec_names() {
+        for c in [Codec::Auto, Codec::H264, Codec::Av1, Codec::Vp9] {
+            assert_eq!(Codec::from_name(c.name()), Some(c));
+            let json = serde_json::to_string(&c).unwrap();
+            assert_eq!(json, format!("\"{}\"", c.name()));
+        }
+        assert_eq!(Codec::from_name("hevc"), None);
     }
 
     #[test]
@@ -332,28 +431,52 @@ mod tests {
     #[test]
     fn format_from_db_roundtrip() {
         for f in [
-            Format::Video { max_height: None },
+            Format::Video {
+                max_height: None,
+                codec: Codec::Auto,
+            },
             Format::Video {
                 max_height: Some(720),
+                codec: Codec::H264,
+            },
+            Format::Video {
+                max_height: None,
+                codec: Codec::Av1,
             },
             Format::AudioMp3,
             Format::AudioM4a,
         ] {
-            assert_eq!(Format::from_db(f.db_name(), f.quality()), Some(f));
+            assert_eq!(
+                Format::from_db(f.db_name(), f.quality(), f.codec()),
+                Some(f)
+            );
         }
-        assert_eq!(Format::from_db("webm", None), None);
-        assert_eq!(
-            Format::from_db("video", Some(-1)),
-            Some(Format::Video { max_height: None })
-        );
+        assert_eq!(Format::from_db("webm", None, None), None);
+        // Rows from before codecs (NULL) and unknown values mean Auto.
+        for codec in [None, Some("hevc")] {
+            assert_eq!(
+                Format::from_db("video", Some(-1), codec),
+                Some(Format::Video {
+                    max_height: None,
+                    codec: Codec::Auto
+                })
+            );
+        }
+        assert_eq!(Format::AudioMp3.codec(), None);
     }
 
     #[test]
     fn format_db_mapping_and_json() {
-        assert_eq!(Format::Video { max_height: None }.db_name(), "video");
+        let best = Format::Video {
+            max_height: None,
+            codec: Codec::Auto,
+        };
+        assert_eq!(best.db_name(), "video");
+        assert_eq!(best.codec(), Some("auto"));
         assert_eq!(
             Format::Video {
-                max_height: Some(1080)
+                max_height: Some(1080),
+                codec: Codec::Auto,
             }
             .quality(),
             Some(1080)
@@ -362,13 +485,18 @@ mod tests {
         assert_eq!(Format::AudioM4a.db_name(), "audio_m4a");
         assert_eq!(Format::AudioM4a.quality(), None);
 
-        let f: Format = serde_json::from_str(r#"{"kind":"video","maxHeight":720}"#).unwrap();
+        let f: Format =
+            serde_json::from_str(r#"{"kind":"video","maxHeight":720,"codec":"vp9"}"#).unwrap();
         assert_eq!(
             f,
             Format::Video {
-                max_height: Some(720)
+                max_height: Some(720),
+                codec: Codec::Vp9,
             }
         );
+        // Without a codec (older frontend): Auto.
+        let f: Format = serde_json::from_str(r#"{"kind":"video","maxHeight":null}"#).unwrap();
+        assert_eq!(f, best);
         let f: Format = serde_json::from_str(r#"{"kind":"audio_mp3"}"#).unwrap();
         assert_eq!(f, Format::AudioMp3);
     }

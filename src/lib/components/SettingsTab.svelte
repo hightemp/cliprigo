@@ -10,6 +10,7 @@
     t,
     toastError,
   } from "$lib/state.svelte";
+  import { CODECS } from "$lib/types";
   import type {
     ComponentName,
     ComponentProgress,
@@ -161,6 +162,24 @@
           {/each}
         </select>
       </label>
+
+      <div class="row column">
+        <div class="row">
+          <label for="default-codec">{t("settings.defaultCodec")}</label>
+          <select
+            id="default-codec"
+            class="input"
+            bind:value={draft.defaultCodec}
+            onchange={save}
+          >
+            {#each CODECS as c (c)}
+              <option value={c}>{t(`codecs.name.${c}`)}</option>
+            {/each}
+          </select>
+        </div>
+        <span class="muted small">{t(`codecs.hint.${draft.defaultCodec}`)}</span
+        >
+      </div>
     {/if}
 
     <label class="row">

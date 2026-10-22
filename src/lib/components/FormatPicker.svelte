@@ -2,6 +2,7 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { qualityLabel } from "$lib/format";
   import { qualityOptions, type AudioFormat, type Mode } from "$lib/selection";
+  import { CODECS, type Codec } from "$lib/types";
   import { app, t } from "$lib/state.svelte";
   import Icon from "./Icon.svelte";
 
@@ -9,12 +10,14 @@
     heights,
     mode = $bindable(),
     quality = $bindable(),
+    codec = $bindable(),
     audio = $bindable(),
     outputDir = $bindable(),
   }: {
     heights: number[];
     mode: Mode;
     quality: number | null;
+    codec: Codec;
     audio: AudioFormat;
     outputDir: string | null;
   } = $props();
@@ -64,6 +67,14 @@
         {/each}
       </select>
     </label>
+    <label>
+      <span class="muted">{t("download.codec")}</span>
+      <select class="input" bind:value={codec}>
+        {#each CODECS as c (c)}
+          <option value={c}>{t(`codecs.name.${c}`)}</option>
+        {/each}
+      </select>
+    </label>
   {:else}
     <label>
       <span class="muted">{t("download.audioFormat")}</span>
@@ -81,6 +92,10 @@
       <span class="ellipsis path"><bdi>{folder}</bdi></span>
     </button>
   </div>
+
+  {#if mode === "video"}
+    <p class="hint muted">{t(`codecs.hint.${codec}`)}</p>
+  {/if}
 </div>
 
 <style>
@@ -126,6 +141,13 @@
 
   label select {
     font-size: 14px;
+  }
+
+  .hint {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.4;
   }
 
   .folder {

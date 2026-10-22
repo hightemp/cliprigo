@@ -1,4 +1,4 @@
-import type { Format, PlaylistEntry } from "./types";
+import { CODECS, type Codec, type Format, type PlaylistEntry } from "./types";
 
 export type Mode = "video" | "audio";
 export type AudioFormat = "mp3" | "m4a";
@@ -31,12 +31,18 @@ export function qualityOptions(heights: readonly number[]): (number | null)[] {
   return [null, ...distinct];
 }
 
+/** A stored or saved codec name, falling back to "auto" for unknown values. */
+export function codecOrAuto(value: string | null | undefined): Codec {
+  return CODECS.find((c) => c === value) ?? "auto";
+}
+
 export function buildFormat(
   mode: Mode,
   quality: number | null,
+  codec: Codec,
   audio: AudioFormat,
 ): Format {
-  if (mode === "video") return { kind: "video", maxHeight: quality };
+  if (mode === "video") return { kind: "video", maxHeight: quality, codec };
   return audio === "mp3" ? { kind: "audio_mp3" } : { kind: "audio_m4a" };
 }
 
@@ -44,10 +50,11 @@ export function buildFormat(
 export function formatFromRecord(
   format: string,
   quality: number | null,
+  codec: string | null,
 ): Format | null {
   switch (format) {
     case "video":
-      return { kind: "video", maxHeight: quality };
+      return { kind: "video", maxHeight: quality, codec: codecOrAuto(codec) };
     case "audio_mp3":
       return { kind: "audio_mp3" };
     case "audio_m4a":

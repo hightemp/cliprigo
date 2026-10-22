@@ -5,6 +5,7 @@
   import { formatDuration } from "$lib/format";
   import {
     buildFormat,
+    codecOrAuto,
     initialSelection,
     toggleAll,
     type AudioFormat,
@@ -12,6 +13,7 @@
   } from "$lib/selection";
   import { app, copyDetails, t, toast, toastError } from "$lib/state.svelte";
   import type {
+    Codec,
     DownloadRecord,
     PlaylistEntry,
     ProbeResult,
@@ -42,6 +44,7 @@
 
   let mode = $state<Mode>("video");
   let quality = $state<number | null>(null);
+  let codec = $state<Codec>("auto");
   let audio = $state<AudioFormat>("mp3");
   let outputDir = $state<string | null>(null);
 
@@ -65,6 +68,7 @@
     audio = s?.defaultFormat === "audio_m4a" ? "m4a" : "mp3";
     const q = s?.defaultQuality ?? null;
     quality = q !== null && videoHeights.includes(q) ? q : null;
+    codec = codecOrAuto(s?.defaultCodec);
     outputDir = null;
   }
 
@@ -142,7 +146,7 @@
       thumbnailUrl: v.thumbnail,
       playlistId: playlist?.id ?? null,
       playlistTitle: playlist?.title ?? null,
-      format: buildFormat(mode, quality, audio),
+      format: buildFormat(mode, quality, codec, audio),
       outputDir,
     };
   }
@@ -333,6 +337,7 @@
         {heights}
         bind:mode
         bind:quality
+        bind:codec
         bind:audio
         bind:outputDir
       />

@@ -13,6 +13,7 @@ function record(id: number, status: DownloadRecord["status"]): DownloadRecord {
     thumbnailUrl: null,
     format: "video",
     quality: null,
+    codec: "auto",
     filePath: null,
     fileSize: null,
     status,

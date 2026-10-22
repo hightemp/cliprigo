@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildFormat,
+  codecOrAuto,
   formatFromRecord,
   initialSelection,
   qualityOptions,
@@ -55,31 +56,55 @@ describe("qualityOptions", () => {
 
 describe("buildFormat", () => {
   it("maps the picker state to the backend format", () => {
-    expect(buildFormat("video", null, "mp3")).toEqual({
+    expect(buildFormat("video", null, "auto", "mp3")).toEqual({
       kind: "video",
       maxHeight: null,
+      codec: "auto",
     });
-    expect(buildFormat("video", 720, "mp3")).toEqual({
+    expect(buildFormat("video", 720, "h264", "mp3")).toEqual({
       kind: "video",
       maxHeight: 720,
+      codec: "h264",
     });
-    expect(buildFormat("audio", 720, "mp3")).toEqual({ kind: "audio_mp3" });
-    expect(buildFormat("audio", null, "m4a")).toEqual({ kind: "audio_m4a" });
+    expect(buildFormat("audio", 720, "av1", "mp3")).toEqual({
+      kind: "audio_mp3",
+    });
+    expect(buildFormat("audio", null, "auto", "m4a")).toEqual({
+      kind: "audio_m4a",
+    });
   });
 });
 
 describe("formatFromRecord", () => {
   it("restores the backend format from a history record", () => {
-    expect(formatFromRecord("video", 720)).toEqual({
+    expect(formatFromRecord("video", 720, "vp9")).toEqual({
       kind: "video",
       maxHeight: 720,
+      codec: "vp9",
     });
-    expect(formatFromRecord("video", null)).toEqual({
-      kind: "video",
-      maxHeight: null,
+    // Records from before codecs, or with an unknown value: auto.
+    for (const codec of [null, "hevc"]) {
+      expect(formatFromRecord("video", null, codec)).toEqual({
+        kind: "video",
+        maxHeight: null,
+        codec: "auto",
+      });
+    }
+    expect(formatFromRecord("audio_mp3", null, null)).toEqual({
+      kind: "audio_mp3",
     });
-    expect(formatFromRecord("audio_mp3", null)).toEqual({ kind: "audio_mp3" });
-    expect(formatFromRecord("audio_m4a", 720)).toEqual({ kind: "audio_m4a" });
-    expect(formatFromRecord("webm", null)).toBeNull();
+    expect(formatFromRecord("audio_m4a", 720, null)).toEqual({
+      kind: "audio_m4a",
+    });
+    expect(formatFromRecord("webm", null, null)).toBeNull();
+  });
+});
+
+describe("codecOrAuto", () => {
+  it("accepts known codecs only", () => {
+    expect(codecOrAuto("av1")).toBe("av1");
+    expect(codecOrAuto("h264")).toBe("h264");
+    expect(codecOrAuto("hevc")).toBe("auto");
+    expect(codecOrAuto(undefined)).toBe("auto");
   });
 });

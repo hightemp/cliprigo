@@ -1,6 +1,20 @@
-# Cliprigo
+<p align="center">
+  <img src="src-tauri/icons/128x128@2x.png" alt="Cliprigo icon" width="128" height="128">
+</p>
 
-**English** | [Русский](README.ru.md)
+<h1 align="center">Cliprigo</h1>
+
+<p align="center">Download YouTube videos and keep a history of everything you saved.</p>
+
+<p align="center">
+  <a href="https://github.com/hightemp/cliprigo/actions/workflows/build.yml"><img alt="Build" src="https://github.com/hightemp/cliprigo/actions/workflows/build.yml/badge.svg"></a>
+  <a href="https://github.com/hightemp/cliprigo/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/hightemp/cliprigo"></a>
+  <a href="https://github.com/hightemp/cliprigo/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/hightemp/cliprigo/total"></a>
+  <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-blue">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/hightemp/cliprigo"></a>
+</p>
+
+<p align="center"><b>English</b> | <a href="README.ru.md">Русский</a></p>
 
 A small cross-platform desktop app for downloading YouTube videos, with a history of everything you've downloaded so nothing gets lost.
 
@@ -11,6 +25,7 @@ Cliprigo is a friendly front end for [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 ## Features
 
 - **Paste a link, pick a format, download.** Best quality MP4, a specific resolution (4K, 1080p, 720p…), or audio only as MP3/M4A.
+- **Codec choice with a hint on where it plays:** Auto, H.264 (opens in any player), AV1 (smallest files) or VP9. Plain HTTPS formats are preferred over slow HLS streams.
 - **Playlists and channels.** Pick the videos you want; ones you already have are marked and unchecked.
 - **Download queue** with a configurable number of parallel downloads, live progress, speed and time left. Canceling removes partial files.
 - **History** of every download with search, a status filter, thumbnails that work offline, and quick actions: open the file, show it in its folder, copy the link, retry, download again.

@@ -37,6 +37,8 @@ const MIGRATIONS: &[&str] = &[
     "#,
     // 2: remember the target folder so failed downloads can be retried
     "ALTER TABLE downloads ADD COLUMN output_dir TEXT;",
+    // 3: video codec preference, so retries use the same one
+    "ALTER TABLE downloads ADD COLUMN codec TEXT;",
 ];
 
 pub fn run(conn: &mut Connection) -> AppResult<()> {
@@ -86,5 +88,9 @@ mod tests {
             })
             .unwrap();
         assert_eq!((count, dir), (1, None));
+        let codec: Option<String> = conn
+            .query_row("SELECT codec FROM downloads", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(codec, None);
     }
 }

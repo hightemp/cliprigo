@@ -26,6 +26,8 @@ export interface DownloadRecord {
   /** `video`, `audio_mp3` or `audio_m4a`. */
   format: string;
   quality: number | null;
+  /** Video codec preference; null for audio and records from before codecs. */
+  codec: string | null;
   filePath: string | null;
   fileSize: number | null;
   status: DownloadStatus;
@@ -68,8 +70,12 @@ export type QueueEvent =
   | { type: "status"; record: DownloadRecord }
   | { type: "progress"; id: number; snapshot: Snapshot };
 
+/** Preferred video codec; see `Codec` in src-tauri/src/ytdlp/args.rs. */
+export type Codec = "auto" | "h264" | "av1" | "vp9";
+export const CODECS: readonly Codec[] = ["auto", "h264", "av1", "vp9"];
+
 export type Format =
-  | { kind: "video"; maxHeight: number | null }
+  | { kind: "video"; maxHeight: number | null; codec: Codec }
   | { kind: "audio_mp3" }
   | { kind: "audio_m4a" };
 
@@ -92,6 +98,7 @@ export interface Settings {
   downloadDir: string;
   defaultFormat: "video" | "audio_mp3" | "audio_m4a";
   defaultQuality: number | null;
+  defaultCodec: Codec;
   concurrency: number;
   filenameTemplate: string;
   language: Language;

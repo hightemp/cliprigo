@@ -40,6 +40,7 @@ export const en = {
     video: "Video",
     audio: "Audio only",
     quality: "Quality",
+    codec: "Codec",
     best: "Best available",
     audioFormat: "Format",
     folder: "Folder",
@@ -110,6 +111,20 @@ export const en = {
     loadMore: "Show more",
     added: "Added to the queue",
   },
+  codecs: {
+    name: {
+      auto: "Auto",
+      h264: "H.264 — compatible",
+      av1: "AV1 — compact",
+      vp9: "VP9",
+    },
+    hint: {
+      auto: "Best resolution. Up to 1080p it's H.264, which opens in any player; above that (2K, 4K) YouTube only has VP9 and AV1 — use VLC for those.",
+      h264: "Opens in any player: Movies & TV, Windows Media Player, QuickTime, phones, TVs. YouTube serves H.264 up to 1080p.",
+      av1: "Smallest files, up to 4K and beyond. Windows needs the free “AV1 Video Extension” from the Microsoft Store; macOS QuickTime only on M3 Macs or newer. Works anywhere in VLC, mpv and browsers.",
+      vp9: "Up to 4K and beyond. Windows needs “VP9 Video Extensions” (usually preinstalled); QuickTime on macOS won't open it. Works anywhere in VLC, IINA, mpv and browsers.",
+    },
+  },
   settings: {
     proxy: "Proxy",
     proxyHint:
@@ -136,6 +151,7 @@ export const en = {
     choose: "Choose…",
     defaultFormat: "Default format",
     defaultQuality: "Default quality",
+    defaultCodec: "Default codec",
     concurrency: "Simultaneous downloads",
     filenameTemplate: "File name template",
     filenameHint: "yt-dlp output template, e.g. %(title)s [%(id)s].%(ext)s",

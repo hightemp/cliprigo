@@ -42,6 +42,7 @@ export const ru: Messages = {
     video: "Видео",
     audio: "Только звук",
     quality: "Качество",
+    codec: "Кодек",
     best: "Лучшее доступное",
     audioFormat: "Формат",
     folder: "Папка",
@@ -114,6 +115,20 @@ export const ru: Messages = {
     loadMore: "Показать ещё",
     added: "Добавлено в очередь",
   },
+  codecs: {
+    name: {
+      auto: "Авто",
+      h264: "H.264 — совместимый",
+      av1: "AV1 — компактный",
+      vp9: "VP9",
+    },
+    hint: {
+      auto: "Лучшее разрешение. До 1080p — H.264, который открывается в любом плеере; выше (2K, 4K) у YouTube есть только VP9 и AV1 — для них подойдёт VLC.",
+      h264: "Файл открывается в любом плеере: «Кино и ТВ», Windows Media Player, QuickTime, телефоны, телевизоры. YouTube отдаёт H.264 максимум в 1080p.",
+      av1: "Самые маленькие файлы, до 4K и выше. Windows: нужно бесплатное «AV1 Video Extension» из Microsoft Store; macOS QuickTime — только на Mac с M3 и новее. Без ограничений: VLC, mpv, браузеры.",
+      vp9: "До 4K и выше. Windows: нужны «VP9 Video Extensions» (обычно уже установлены); QuickTime на macOS не откроет. Без ограничений: VLC, IINA, mpv, браузеры.",
+    },
+  },
   settings: {
     proxy: "Прокси",
     proxyHint:
@@ -140,6 +155,7 @@ export const ru: Messages = {
     choose: "Выбрать…",
     defaultFormat: "Формат по умолчанию",
     defaultQuality: "Качество по умолчанию",
+    defaultCodec: "Кодек по умолчанию",
     concurrency: "Одновременных загрузок",
     filenameTemplate: "Шаблон имени файла",
     filenameHint: "Шаблон yt-dlp, например %(title)s [%(id)s].%(ext)s",

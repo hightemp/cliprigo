@@ -1,6 +1,20 @@
-# Cliprigo
+<p align="center">
+  <img src="src-tauri/icons/128x128@2x.png" alt="Cliprigo icon" width="128" height="128">
+</p>
 
-[English](README.md) | **Русский**
+<h1 align="center">Cliprigo</h1>
+
+<p align="center">Скачивание видео с YouTube с историей всего, что вы сохранили.</p>
+
+<p align="center">
+  <a href="https://github.com/hightemp/cliprigo/actions/workflows/build.yml"><img alt="Build" src="https://github.com/hightemp/cliprigo/actions/workflows/build.yml/badge.svg"></a>
+  <a href="https://github.com/hightemp/cliprigo/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/hightemp/cliprigo"></a>
+  <a href="https://github.com/hightemp/cliprigo/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/hightemp/cliprigo/total"></a>
+  <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-blue">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/hightemp/cliprigo"></a>
+</p>
+
+<p align="center"><a href="README.md">English</a> | <b>Русский</b></p>
 
 Небольшое кроссплатформенное приложение для скачивания видео с YouTube. Ведёт историю всего скачанного, чтобы ничего не потерялось.
 
@@ -11,6 +25,7 @@ Cliprigo — удобная оболочка над [yt-dlp](https://github.com/
 ## Возможности
 
 - **Вставил ссылку, выбрал формат, скачал.** MP4 в лучшем качестве, конкретное разрешение (4K, 1080p, 720p…) или только звук в MP3/M4A.
+- **Выбор кодека с подсказкой, где он откроется:** Авто, H.264 (открывается в любом плеере), AV1 (самые маленькие файлы) или VP9. Обычные HTTPS-форматы предпочитаются медленным HLS-потокам.
 - **Плейлисты и каналы.** Можно выбрать нужные видео; то, что уже скачано, помечается и не выбирается.
 - **Очередь загрузок** с настраиваемым числом параллельных загрузок, прогрессом, скоростью и оставшимся временем. При отмене недокачанные файлы удаляются.
 - **История** всех загрузок: поиск, фильтр по статусу, превью, которые работают без сети, и быстрые действия — открыть файл, показать в папке, скопировать ссылку, повторить, скачать снова.

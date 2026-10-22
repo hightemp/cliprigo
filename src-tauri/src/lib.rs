@@ -5,6 +5,7 @@ mod diagnostics;
 mod error;
 mod net;
 mod net_env;
+mod panic_log;
 mod process;
 mod proxy_check;
 mod queue;
@@ -92,6 +93,7 @@ fn create_queue(app: &AppHandle, db: Db, components: Arc<ComponentManager>) -> Q
 fn init_logging(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let log_dir = app.path().app_log_dir()?;
     std::fs::create_dir_all(&log_dir)?;
+    panic_log::install(log_dir.join("cliprigo.log"));
     let file_appender = tracing_appender::rolling::never(&log_dir, "cliprigo.log");
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))

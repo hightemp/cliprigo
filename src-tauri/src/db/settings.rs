@@ -16,6 +16,8 @@ pub struct Settings {
     pub default_format: String,
     /// Max video height; `None` means best available.
     pub default_quality: Option<i64>,
+    /// `auto`, `h264`, `av1` or `vp9`.
+    pub default_codec: String,
     pub concurrency: u8,
     pub filename_template: String,
     /// `system`, `ru` or `en`.
@@ -35,6 +37,7 @@ impl Default for Settings {
             download_dir,
             default_format: "video".into(),
             default_quality: None,
+            default_codec: "auto".into(),
             concurrency: 2,
             filename_template: "%(title)s [%(id)s].%(ext)s".into(),
             language: "system".into(),
@@ -59,6 +62,9 @@ impl Settings {
             "video" | "audio_mp3" | "audio_m4a"
         ) {
             self.default_format = defaults.default_format;
+        }
+        if crate::ytdlp::args::Codec::from_name(&self.default_codec).is_none() {
+            self.default_codec = defaults.default_codec;
         }
         if !matches!(self.language.as_str(), "system" | "ru" | "en") {
             self.language = defaults.language;
@@ -162,6 +168,22 @@ mod tests {
         assert_eq!(err.code(), "invalid_proxy");
         // The invalid value was not stored.
         assert_eq!(db.load_settings().unwrap().proxy, "http://127.0.0.1:8888");
+    }
+
+    #[test]
+    fn default_codec_roundtrip_and_validation() {
+        let db = Db::open_in_memory().unwrap();
+        assert_eq!(db.load_settings().unwrap().default_codec, "auto");
+        for (input, stored) in [("h264", "h264"), ("av1", "av1"), ("hevc", "auto")] {
+            let saved = db
+                .save_settings(Settings {
+                    default_codec: input.into(),
+                    ..Default::default()
+                })
+                .unwrap();
+            assert_eq!(saved.default_codec, stored, "{input}");
+            assert_eq!(db.load_settings().unwrap().default_codec, stored);
+        }
     }
 
     #[test]
