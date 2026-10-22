@@ -114,6 +114,23 @@ export const en = {
     proxy: "Proxy",
     proxyHint:
       "For yt-dlp, thumbnails and component downloads. Empty: system settings. Examples: http://127.0.0.1:8888, socks5://127.0.0.1:1080",
+    checkProxy: "Check",
+    proxyOk: "YouTube is reachable through the proxy · {ms} ms",
+    directOk: "YouTube is reachable without a proxy · {ms} ms",
+    proxyFailure: {
+      proxy_unreachable:
+        "Can't connect to the proxy. Check the address and port, and that the proxy is running.",
+      proxy_auth:
+        "The proxy needs a login and password: http://user:password@host:port",
+      proxy_refused:
+        "The proxy refused to connect to YouTube. It may not allow HTTPS (CONNECT) or blocks YouTube.",
+      unreachable:
+        "YouTube is unreachable without a proxy. Set a proxy or turn on a VPN.",
+      timeout:
+        "No answer in 15 seconds. The proxy or YouTube is too slow or blocked.",
+      http_status: "Unexpected answer: {detail}",
+      unknown: "Check failed: {detail}",
+    },
     copyDiagnostics: "Copy diagnostics",
     downloadDir: "Download folder",
     choose: "Choose…",

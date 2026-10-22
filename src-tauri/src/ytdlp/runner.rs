@@ -853,12 +853,12 @@ mod live_tests {
         }
     }
 
-    /// The protocols yt-dlp would pick for a download, without downloading.
-    async fn chosen_protocols(tools: &Tools, req: &DownloadRequest) -> AppResult<String> {
+    /// "protocol vcodec" of the formats yt-dlp would pick, without downloading.
+    async fn chosen_formats(tools: &Tools, req: &DownloadRequest) -> AppResult<String> {
         let mut args = crate::ytdlp::args::download_args(tools, req);
         let url_at = args.len() - 2;
         // Explicit: the after_move --print in download_args turns implicit simulate off.
-        let extra = ["--simulate", "--print", "%(protocol)s"];
+        let extra = ["--simulate", "--print", "%(protocol)s %(vcodec)s"];
         args.splice(url_at..url_at, extra.map(OsString::from));
         let output = build_command(tools, args).output().await?;
         if !output.status.success() {
@@ -868,21 +868,26 @@ mod live_tests {
     }
 
     /// YouTube's "Premium" HLS formats were picked over https ones and downloaded
-    /// ~90x slower through a proxy (23 KiB/s vs 2 MiB/s).
+    /// ~90x slower through a proxy (23 KiB/s vs 2 MiB/s). Up to 1080p H.264 must
+    /// win; above that only VP9/AV1 exist, so "best" may still pick them.
     #[tokio::test]
     #[ignore = "network"]
-    async fn live_best_video_avoids_hls() {
+    async fn live_video_formats_are_https_h264() {
         let tools = tools().await;
         let dir = tempfile::tempdir().unwrap();
         for url in VIDEOS.iter().chain([&PREMIUM_HLS_VIDEO]) {
-            let req = request(url, Format::Video { max_height: None }, dir.path());
-            let Some(protocols) =
-                live(&format!("formats {url}"), || chosen_protocols(&tools, &req)).await
-            else {
-                continue;
-            };
-            eprintln!("{url}: {protocols}");
-            assert!(!protocols.contains("m3u8"), "{url}: {protocols}");
+            for max_height in [None, Some(1080)] {
+                let req = request(url, Format::Video { max_height }, dir.path());
+                let what = format!("formats {max_height:?} {url}");
+                let Some(chosen) = live(&what, || chosen_formats(&tools, &req)).await else {
+                    continue;
+                };
+                eprintln!("{what}: {chosen}");
+                assert!(!chosen.contains("m3u8"), "{what}: {chosen}");
+                if max_height.is_some() {
+                    assert!(chosen.contains("avc1"), "{what}: {chosen}");
+                }
+            }
         }
     }
 

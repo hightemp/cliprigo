@@ -107,6 +107,13 @@ pub async fn components_check_updates(
     manager.check_updates().await
 }
 
+/// "Check" next to the proxy field: tries YouTube with the proxy as typed, before saving.
+#[tauri::command]
+pub async fn proxy_check(proxy: String) -> AppResult<crate::proxy_check::ProxyCheck> {
+    use crate::proxy_check::{CHECK_TIMEOUT, YOUTUBE_PROBE_URL, check};
+    check(&proxy, YOUTUBE_PROBE_URL, CHECK_TIMEOUT).await
+}
+
 /// Metadata for a pasted link: a single video or a playlist/channel listing.
 #[tauri::command]
 pub async fn video_probe(

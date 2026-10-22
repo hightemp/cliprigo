@@ -650,6 +650,59 @@ const scenarios = [
       });
     },
   },
+  {
+    name: "16-proxy-check-ok",
+    theme: "dark",
+    responses: ready("ru", {
+      // Clicking "Check" blurs the field, which saves it.
+      settings_set: { ...settings("ru"), proxy: "http://127.0.0.1:8888" },
+      proxy_check: {
+        ok: true,
+        viaProxy: true,
+        elapsedMs: 385,
+        failure: null,
+        detail: "204 No Content",
+      },
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Настройки" }).click();
+      await page.getByLabel("Прокси").fill("http://127.0.0.1:8888");
+      await page
+        .getByRole("button", { name: "Проверить", exact: true })
+        .click();
+      // The typed value is checked, even before it is saved.
+      const call = await check.call("proxy_check");
+      check.equal(call.args.proxy, "http://127.0.0.1:8888");
+      await check.text("YouTube доступен через прокси · 385 мс");
+    },
+  },
+  {
+    name: "17-proxy-check-refused",
+    theme: "light",
+    responses: ready("ru", {
+      // Clicking "Check" blurs the field, which saves it.
+      settings_set: { ...settings("ru"), proxy: "http://127.0.0.1:8888" },
+      proxy_check: {
+        ok: false,
+        viaProxy: true,
+        elapsedMs: 120,
+        failure: "proxy_refused",
+        detail: "tunnel error: unsuccessful",
+      },
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Настройки" }).click();
+      await page.getByLabel("Прокси").fill("http://127.0.0.1:8888");
+      await page
+        .getByRole("button", { name: "Проверить", exact: true })
+        .click();
+      await check.text("Прокси отказался соединять с YouTube");
+      await page
+        .getByRole("button", { name: "Скопировать подробности" })
+        .click();
+      await check.call("diagnostics");
+    },
+  },
 ];
 
 // ---------- runner ----------

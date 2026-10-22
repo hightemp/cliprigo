@@ -6,6 +6,7 @@ mod error;
 mod net;
 mod net_env;
 mod process;
+mod proxy_check;
 mod queue;
 mod thumbs;
 mod ytdlp;
@@ -153,6 +154,7 @@ pub fn run() {
             commands::open_logs,
             commands::settings_get,
             commands::settings_set,
+            commands::proxy_check,
             commands::components_status,
             commands::components_install,
             commands::components_check_updates,

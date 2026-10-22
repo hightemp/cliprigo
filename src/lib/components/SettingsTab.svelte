@@ -14,6 +14,7 @@
     ComponentName,
     ComponentProgress,
     ComponentStatus,
+    ProxyCheck,
     Settings,
     UpdateInfo,
   } from "$lib/types";
@@ -45,6 +46,32 @@
       // Show what is actually stored, not the rejected value.
       if (app.settings) draft = { ...app.settings };
     }
+  }
+
+  let proxyChecking = $state(false);
+  let proxyResult = $state<ProxyCheck | null>(null);
+
+  async function checkProxy() {
+    proxyChecking = true;
+    proxyResult = null;
+    try {
+      // The typed value, so a proxy can be tried before it is saved.
+      proxyResult = await api.proxyCheck(draft.proxy);
+    } catch (err) {
+      toastError(err);
+    } finally {
+      proxyChecking = false;
+    }
+  }
+
+  function proxyResultText(r: ProxyCheck): string {
+    if (r.ok)
+      return t(r.viaProxy ? "settings.proxyOk" : "settings.directOk", {
+        ms: r.elapsedMs,
+      });
+    return t(`settings.proxyFailure.${r.failure ?? "unknown"}`, {
+      detail: r.detail,
+    });
   }
 
   async function chooseFolder() {
@@ -156,18 +183,45 @@
       <span class="muted small">{t("settings.filenameHint")}</span>
     </label>
 
-    <label class="row column">
-      <span>{t("settings.proxy")}</span>
-      <input
-        class="input"
-        bind:value={draft.proxy}
-        onchange={save}
-        placeholder="http://127.0.0.1:8888"
-        spellcheck="false"
-        autocomplete="off"
-      />
+    <div class="row column">
+      <label for="proxy">{t("settings.proxy")}</label>
+      <div class="inline">
+        <input
+          id="proxy"
+          class="input"
+          bind:value={draft.proxy}
+          oninput={() => (proxyResult = null)}
+          onchange={save}
+          placeholder="http://127.0.0.1:8888"
+          spellcheck="false"
+          autocomplete="off"
+        />
+        <button class="btn" disabled={proxyChecking} onclick={checkProxy}>
+          {proxyChecking ? t("settings.checking") : t("settings.checkProxy")}
+        </button>
+      </div>
+      {#if proxyResult}
+        {@const r = proxyResult}
+        <div class="proxy-result small" class:ok={r.ok} aria-live="polite">
+          <Icon name={r.ok ? "check" : "close"} size={14} />
+          <span>{proxyResultText(r)}</span>
+          {#if !r.ok}
+            <button
+              class="btn small-btn"
+              onclick={() =>
+                copyDetails(
+                  { code: `proxy_check_${r.failure}`, message: r.detail },
+                  "proxy check",
+                )}
+            >
+              <Icon name="paste" size={14} />
+              {t("errors.copyDetails")}
+            </button>
+          {/if}
+        </div>
+      {/if}
       <span class="muted small">{t("settings.proxyHint")}</span>
-    </label>
+    </div>
 
     <label class="row">
       <span>{t("settings.language")}</span>
@@ -292,6 +346,34 @@
   .row.column {
     display: grid;
     gap: 6px;
+  }
+
+  .inline {
+    display: flex;
+    gap: 8px;
+  }
+
+  .inline input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .proxy-result {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    color: var(--danger);
+  }
+
+  .small-btn {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 13px;
+  }
+
+  .proxy-result.ok {
+    color: var(--success);
   }
 
   .row.check {

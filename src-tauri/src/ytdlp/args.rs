@@ -127,8 +127,9 @@ pub fn download_args(tools: &Tools, req: &DownloadRequest) -> Vec<OsString> {
             let sort = match max_height {
                 // `proto` prefers plain https over HLS (m3u8): YouTube's "Premium"
                 // HLS formats are several times larger and crawl through proxies.
-                Some(h) => format!("res:{h},proto,ext:mp4:m4a"),
-                None => "res,proto,ext:mp4:m4a".to_string(),
+                // H.264 plays everywhere; AV1 needs an extra codec on Windows 10.
+                Some(h) => format!("res:{h},proto,vcodec:h264,ext:mp4:m4a"),
+                None => "res,proto,vcodec:h264,ext:mp4:m4a".to_string(),
             };
             push(&[
                 "-f",
@@ -300,7 +301,8 @@ mod tests {
         assert!(has_pair(&best, "-f", "bv*+ba/b"));
         // proto: progressive https beats HLS (m3u8), which is fetched in tiny
         // fragments and was ~90x slower through a proxy.
-        assert!(has_pair(&best, "-S", "res,proto,ext:mp4:m4a"));
+        // vcodec:h264: plays everywhere; AV1 needs an extension on Windows 10.
+        assert!(has_pair(&best, "-S", "res,proto,vcodec:h264,ext:mp4:m4a"));
         assert!(has_pair(&best, "--merge-output-format", "mp4"));
         assert!(!best.contains(&"-x".to_string()));
 
@@ -310,7 +312,7 @@ mod tests {
                 max_height: Some(720),
             }),
         ));
-        assert!(has_pair(&hd, "-S", "res:720,proto,ext:mp4:m4a"));
+        assert!(has_pair(&hd, "-S", "res:720,proto,vcodec:h264,ext:mp4:m4a"));
     }
 
     #[test]

@@ -8,6 +8,7 @@ import type {
   HistoryItem,
   HistoryQuery,
   ProbeResult,
+  ProxyCheck,
   QueueEntry,
   QueueEvent,
   QueueItemInput,
@@ -30,6 +31,7 @@ export const api = {
   settingsGet: () => invoke<Settings>("settings_get"),
   settingsSet: (settings: Settings) =>
     invoke<Settings>("settings_set", { settings }),
+  proxyCheck: (proxy: string) => invoke<ProxyCheck>("proxy_check", { proxy }),
 
   componentsStatus: () => invoke<ComponentStatus[]>("components_status"),
   componentsInstall: (component: ComponentName) =>

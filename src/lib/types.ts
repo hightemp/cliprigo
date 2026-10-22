@@ -100,6 +100,25 @@ export interface Settings {
   proxy: string;
 }
 
+export type ProxyFailure =
+  | "proxy_unreachable"
+  | "proxy_auth"
+  | "proxy_refused"
+  | "unreachable"
+  | "timeout"
+  | "http_status"
+  | "unknown";
+
+export interface ProxyCheck {
+  ok: boolean;
+  /** False when the field is empty: system settings apply. */
+  viaProxy: boolean;
+  elapsedMs: number;
+  failure: ProxyFailure | null;
+  /** Technical details, credentials hidden. */
+  detail: string;
+}
+
 export type ComponentName = "ytdlp" | "ffmpeg" | "deno";
 
 export interface ComponentStatus {
