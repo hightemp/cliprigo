@@ -25,9 +25,15 @@ jobs:
         with:
           workspaces: src-tauri -> target
       - name: Install Linux deps
+        timeout-minutes: 16
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          # A mirror sometimes stalls without failing: time out and try again.
+          apt="sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30"
+          for attempt in 1 2 3; do
+            $apt update && $apt install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf && exit 0
+            echo "apt attempt $attempt failed"
+          done
+          exit 1
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm build
@@ -73,10 +79,16 @@ jobs:
           workspaces: src-tauri -> target
           key: live
       - name: Install Linux deps
+        timeout-minutes: 16
         if: startsWith(matrix.platform, 'ubuntu')
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          # A mirror sometimes stalls without failing: time out and try again.
+          apt="sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30"
+          for attempt in 1 2 3; do
+            $apt update && $apt install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf && exit 0
+            echo "apt attempt $attempt failed"
+          done
+          exit 1
       - run: pnpm install --frozen-lockfile
       # tauri::generate_context! embeds the built frontend.
       - run: pnpm build
@@ -121,10 +133,16 @@ jobs:
         with:
           workspaces: src-tauri -> target
       - name: Install Linux deps
+        timeout-minutes: 16
         if: startsWith(matrix.platform, 'ubuntu')
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          # A mirror sometimes stalls without failing: time out and try again.
+          apt="sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30"
+          for attempt in 1 2 3; do
+            $apt update && $apt install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf && exit 0
+            echo "apt attempt $attempt failed"
+          done
+          exit 1
       - run: pnpm install --frozen-lockfile
       - uses: tauri-apps/tauri-action@v0
         env:
