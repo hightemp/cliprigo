@@ -132,6 +132,10 @@ pub fn common_args(tools: &Tools) -> Vec<OsString> {
     let mut args: Vec<OsString> = vec![
         "--no-config".into(),
         "--no-color".into(),
+        // The bundled yt-dlp.exe ignores PYTHONIOENCODING and prints in the ANSI
+        // code page; we read stdout as UTF-8.
+        "--encoding".into(),
+        "utf-8".into(),
         "--ffmpeg-location".into(),
         tools.ffmpeg.clone().into(),
         "--js-runtimes".into(),
@@ -254,6 +258,9 @@ mod tests {
         assert!(args.contains(&"--no-config".to_string()));
         assert!(has_pair(&args, "--ffmpeg-location", "/bin/ffmpeg"));
         assert!(has_pair(&args, "--js-runtimes", "deno:/bin/deno"));
+        // Paths and titles are read as UTF-8; on Windows yt-dlp otherwise prints in
+        // the ANSI code page and Cyrillic file names come back as mojibake.
+        assert!(has_pair(&args, "--encoding", "utf-8"));
     }
 
     #[test]

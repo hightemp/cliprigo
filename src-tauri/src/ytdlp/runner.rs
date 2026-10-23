@@ -859,10 +859,19 @@ mod live_tests {
 
     /// "protocol vcodec" of the formats yt-dlp would pick, without downloading.
     async fn chosen_formats(tools: &Tools, req: &DownloadRequest) -> AppResult<String> {
+        simulated_print(tools, req, "%(protocol)s %(vcodec)s").await
+    }
+
+    /// What `--print template` outputs for a download, without downloading.
+    async fn simulated_print(
+        tools: &Tools,
+        req: &DownloadRequest,
+        template: &str,
+    ) -> AppResult<String> {
         let mut args = crate::ytdlp::args::download_args(tools, req);
         let url_at = args.len() - 2;
         // Explicit: the after_move --print in download_args turns implicit simulate off.
-        let extra = ["--simulate", "--print", "%(protocol)s %(vcodec)s"];
+        let extra = ["--simulate", "--print", template];
         args.splice(url_at..url_at, extra.map(OsString::from));
         let output = build_command(tools, args).output().await?;
         if !output.status.success() {
@@ -901,6 +910,21 @@ mod live_tests {
                     assert!(chosen.contains(expected), "{what}: {chosen}");
                 }
             }
+        }
+    }
+
+    /// Windows printed file paths in the ANSI code page: Cyrillic names came back as
+    /// mojibake, and history said "file not found" for files that were there.
+    #[tokio::test]
+    #[ignore = "network"]
+    async fn live_output_is_utf8() {
+        let tools = tools().await;
+        let dir = tempfile::tempdir().unwrap();
+        let req = request(PREMIUM_HLS_VIDEO, Format::AudioM4a, dir.path());
+        if let Some(title) =
+            live("utf-8 title", || simulated_print(&tools, &req, "%(title)s")).await
+        {
+            assert!(title.contains("ПРЕДДИАБЕТ"), "{title}");
         }
     }
 
