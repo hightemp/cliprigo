@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::components::ComponentStatus;
 use crate::db::Settings;
 
@@ -52,6 +54,42 @@ pub fn format_report(info: &DiagInfo) -> String {
     out
 }
 
+/// Moves the log to `<name>.old` once it is over `max_bytes`, replacing the previous
+/// one: yt-dlp errors are logged on every failure and the log would grow forever.
+pub fn rotate_log(path: &Path, max_bytes: u64) -> std::io::Result<()> {
+    match std::fs::metadata(path) {
+        Ok(meta) if meta.len() > max_bytes => {
+            let mut old = path.as_os_str().to_owned();
+            old.push(".old");
+            let _ = std::fs::remove_file(&old);
+            std::fs::rename(path, old)
+        }
+        _ => Ok(()),
+    }
+}
+
+/// The last `max_bytes` of the log, starting at a line boundary.
+pub fn read_log_tail(path: &Path, max_bytes: u64) -> String {
+    use std::io::{Read, Seek, SeekFrom};
+    let Ok(mut file) = std::fs::File::open(path) else {
+        return String::new();
+    };
+    let len = file.metadata().map(|m| m.len()).unwrap_or(0);
+    let start = len.saturating_sub(max_bytes);
+    let mut buf = Vec::new();
+    if file.seek(SeekFrom::Start(start)).is_err() || file.read_to_end(&mut buf).is_err() {
+        return String::new();
+    }
+    if start > 0 {
+        let first_line_end = buf
+            .iter()
+            .position(|b| *b == b'\n')
+            .map_or(buf.len(), |i| i + 1);
+        buf.drain(..first_line_end);
+    }
+    String::from_utf8_lossy(&buf).into_owned()
+}
+
 /// Last `n` lines of `text`.
 pub fn tail_lines(text: &str, n: usize) -> String {
     let lines: Vec<&str> = text.lines().collect();
@@ -65,8 +103,9 @@ pub fn scrub_credentials(text: &str) -> String {
     while let Some(i) = rest.find("://") {
         out.push_str(&rest[..i + 3]);
         rest = &rest[i + 3..];
+        // Only these end an authority: passwords may contain `,` `)` `'` and the like.
         let end = rest
-            .find(|c: char| c.is_whitespace() || matches!(c, '/' | ',' | '"' | '\'' | ')' | ']'))
+            .find(|c: char| c.is_whitespace() || matches!(c, '/' | '?' | '#'))
             .unwrap_or(rest.len());
         let authority = &rest[..end];
         if let Some(at) = authority.rfind('@') {
@@ -147,6 +186,38 @@ mod tests {
     }
 
     #[test]
+    fn large_log_is_moved_aside() {
+        let dir = tempfile::tempdir().unwrap();
+        let log = dir.path().join("cliprigo.log");
+        let old = dir.path().join("cliprigo.log.old");
+        // Missing or small logs stay as they are.
+        rotate_log(&log, 10).unwrap();
+        std::fs::write(&log, "small").unwrap();
+        rotate_log(&log, 10).unwrap();
+        assert_eq!(std::fs::read_to_string(&log).unwrap(), "small");
+        // A large one replaces the previous .old.
+        std::fs::write(&old, "older").unwrap();
+        std::fs::write(&log, "0123456789ab").unwrap();
+        rotate_log(&log, 10).unwrap();
+        assert!(!log.exists());
+        assert_eq!(std::fs::read_to_string(&old).unwrap(), "0123456789ab");
+    }
+
+    #[test]
+    fn log_tail_reads_only_the_end() {
+        let dir = tempfile::tempdir().unwrap();
+        let log = dir.path().join("cliprigo.log");
+        assert_eq!(read_log_tail(&log, 100), "");
+        std::fs::write(&log, "first line\nсредняя\nlast line\n").unwrap();
+        assert_eq!(
+            read_log_tail(&log, 1000),
+            "first line\nсредняя\nlast line\n"
+        );
+        // A cut in the middle drops the partial first line (and split UTF-8).
+        assert_eq!(read_log_tail(&log, 14), "last line\n");
+    }
+
+    #[test]
     fn tail_keeps_last_lines() {
         assert_eq!(tail_lines("a\nb\nc\nd", 2), "c\nd");
         assert_eq!(tail_lines("a\nb", 5), "a\nb");
@@ -159,5 +230,11 @@ mod tests {
             scrub_credentials("via http://u:p@h:1 and socks5://only@h2:2, ok https://x.com/a"),
             "via http://***:***@h:1 and socks5://***@h2:2, ok https://x.com/a"
         );
+        // Passwords may hold characters that end a URL in prose.
+        for password in ["pa,ss", "pa)ss", "pa'ss", "pa\"ss", "pa]ss", "p@ss"] {
+            let text = format!("proxy ('http://user:{password}@h:1') failed");
+            let scrubbed = scrub_credentials(&text);
+            assert_eq!(scrubbed, "proxy ('http://***:***@h:1') failed", "{text}");
+        }
     }
 }

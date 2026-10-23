@@ -751,6 +751,19 @@ const scenarios = [
       await check.text("VP9 Video Extensions");
     },
   },
+  {
+    name: "20-url-without-scheme",
+    theme: "light",
+    responses: ready("en", { video_probe: VIDEO }),
+    async run(page, check) {
+      // Typed, not pasted: the form submit must not be blocked by URL validation.
+      await page.fill("input[type=url]", "youtube.com/watch?v=dQw4w9WgXcQ");
+      await page.keyboard.press("Enter");
+      const probe = await check.call("video_probe");
+      check.equal(probe.args.url, "youtube.com/watch?v=dQw4w9WgXcQ");
+      await check.text(VIDEO.title);
+    },
+  },
 ];
 
 // ---------- runner ----------

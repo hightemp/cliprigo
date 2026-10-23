@@ -34,8 +34,13 @@ pub async fn probe(tools: &Tools, url: &str) -> AppResult<ProbeResult> {
 /// unreachable without a proxy) ends with an error that shows where it got stuck.
 async fn probe_with_timeout(tools: &Tools, url: &str, timeout: Duration) -> AppResult<ProbeResult> {
     let started = std::time::Instant::now();
-    let mut child =
-        crate::process::spawn(&mut build_command(tools, args::probe_args(tools, url))).await?;
+    let temp = RunTemp::create()?;
+    let mut child = crate::process::spawn(&mut build_command(
+        tools,
+        args::probe_args(tools, url),
+        &temp,
+    ))
+    .await?;
     let stdout = read_all(child.stdout.take());
     let (tx, mut rx) = mpsc::unbounded_channel();
     spawn_reader(child.stderr.take(), Stream::Stderr, tx);
@@ -109,8 +114,13 @@ pub async fn download(
     if cancel.is_cancelled() {
         return Ok(Outcome::Canceled);
     }
-    let mut child =
-        crate::process::spawn(&mut build_command(tools, args::download_args(tools, req))).await?;
+    let temp = RunTemp::create()?;
+    let mut child = crate::process::spawn(&mut build_command(
+        tools,
+        args::download_args(tools, req),
+        &temp,
+    ))
+    .await?;
     let (tx, mut rx) = mpsc::unbounded_channel();
     spawn_reader(child.stdout.take(), Stream::Stdout, tx.clone());
     spawn_reader(child.stderr.take(), Stream::Stderr, tx);
@@ -120,7 +130,7 @@ pub async fn download(
     loop {
         tokio::select! {
             biased;
-            _ = cancel.cancelled() => return Ok(abort(&mut child, &tracker).await),
+            _ = cancel.cancelled() => return Ok(abort(&mut child, &tracker, &temp).await),
             msg = rx.recv() => {
                 // Both streams closed: the process is done writing.
                 let Some((stream, line)) = msg else { break };
@@ -144,7 +154,7 @@ pub async fn download(
 
     let status = tokio::select! {
         biased;
-        _ = cancel.cancelled() => return Ok(abort(&mut child, &tracker).await),
+        _ = cancel.cancelled() => return Ok(abort(&mut child, &tracker, &temp).await),
         status = child.wait() => status?,
     };
     if !status.success() {
@@ -163,9 +173,53 @@ pub async fn download(
     })
 }
 
-fn build_command(tools: &Tools, args: Vec<OsString>) -> Command {
+/// A temp dir for one yt-dlp run, removed when dropped. yt-dlp builds are PyInstaller
+/// bundles that unpack ~80 MB into TEMP and only clean up on a normal exit, so every
+/// cancel or timeout (we kill the process) used to leave a `_MEI*` folder behind.
+struct RunTemp(PathBuf);
+
+impl RunTemp {
+    fn create() -> std::io::Result<Self> {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        static SWEEP: std::sync::Once = std::sync::Once::new();
+        let root = std::env::temp_dir().join("cliprigo-runs");
+        SWEEP.call_once(|| sweep_stale_runs(&root));
+        let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = root.join(format!("{}-{n}", std::process::id()));
+        std::fs::create_dir_all(&dir)?;
+        Ok(Self(dir))
+    }
+}
+
+impl Drop for RunTemp {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Removes run dirs left by a crash. Old ones only: another Cliprigo may be running.
+fn sweep_stale_runs(root: &Path) {
+    const STALE: Duration = Duration::from_secs(24 * 60 * 60);
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let stale = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .is_ok_and(|t| t.elapsed().is_ok_and(|age| age > STALE));
+        if stale {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
+fn build_command(tools: &Tools, args: Vec<OsString>, temp: &RunTemp) -> Command {
     let mut cmd = crate::process::command(&tools.ytdlp);
     cmd.args(args)
+        .env("TMPDIR", &temp.0)
+        .env("TMP", &temp.0)
+        .env("TEMP", &temp.0)
         // Python would otherwise use the console code page on Windows and mangle titles.
         .env("PYTHONUTF8", "1")
         .env("PYTHONIOENCODING", "utf-8")
@@ -213,11 +267,21 @@ fn spawn_reader(
     });
 }
 
-async fn abort(child: &mut Child, tracker: &Tracker) -> Outcome {
+async fn abort(child: &mut Child, tracker: &Tracker, temp: &RunTemp) -> Outcome {
     kill_tree(child).await;
     let seen = tracker.seen_files();
+    let temp = temp.0.clone();
     // Retries sleep, so keep them off the async runtime.
-    let _ = tokio::task::spawn_blocking(move || remove_partial_files(seen)).await;
+    let _ = tokio::task::spawn_blocking(move || {
+        remove_partial_files(seen);
+        // Windows keeps the killed process's DLLs locked for a moment.
+        if let Err(e) = remove_with_retry(&temp, REMOVE_ATTEMPTS, REMOVE_DELAY, |p| {
+            std::fs::remove_dir_all(p)
+        }) {
+            tracing::warn!(?temp, error = %e, "could not remove temp dir");
+        }
+    })
+    .await;
     Outcome::Canceled
 }
 
@@ -622,16 +686,21 @@ mod tests {
         let finished_earlier = out.join("Song [id1].mp4");
         std::fs::write(&finished_earlier, b"keep me").unwrap();
         let child_pid_file = dir.path().join("child.pid");
+        let tmp_file = dir.path().join("tmpdir.txt");
 
-        // Writes a .part file, starts a long-running child (stands in for ffmpeg), then waits.
+        // Unpacks like PyInstaller into $TMPDIR, writes a .part file, starts a
+        // long-running child (stands in for ffmpeg), then waits.
         let body = format!(
-            "printf 'data' > '{part}'\n\
+            "echo \"$TMPDIR\" > '{tmp}'\n\
+             mkdir \"$TMPDIR/_MEIfake\" && printf 'x' > \"$TMPDIR/_MEIfake/python.so\"\n\
+             printf 'data' > '{part}'\n\
              sleep 30 &\n\
              echo $! > '{pid}'\n\
              echo 'CLIPRIGO_DL {{\"status\": \"downloading\", \"downloaded_bytes\": 4, \"total_bytes\": 100, \"filename\": \"{file}\", \"tmpfilename\": \"{part}\"}}'\n\
              wait",
             part = part.display(),
             pid = child_pid_file.display(),
+            tmp = tmp_file.display(),
             file = out.join("Song [id1].f394.mp4").display(),
         );
         let tools = fake_tools(dir.path(), &body);
@@ -649,6 +718,12 @@ mod tests {
         assert_eq!(outcome, Outcome::Canceled);
         assert!(!part.exists(), "partial file must be removed");
         assert!(finished_earlier.exists(), "unrelated file must survive");
+        // A killed PyInstaller bootloader can't remove its ~80 MB unpack folder, so each
+        // run gets its own temp dir, removed afterwards.
+        let tmpdir = PathBuf::from(std::fs::read_to_string(&tmp_file).unwrap().trim());
+        assert!(tmpdir.starts_with(std::env::temp_dir()), "{tmpdir:?}");
+        assert_ne!(tmpdir, std::env::temp_dir());
+        assert!(!tmpdir.exists(), "{tmpdir:?} must be removed");
 
         let child: i32 = std::fs::read_to_string(&child_pid_file)
             .unwrap()
@@ -873,7 +948,8 @@ mod live_tests {
         // Explicit: the after_move --print in download_args turns implicit simulate off.
         let extra = ["--simulate", "--print", template];
         args.splice(url_at..url_at, extra.map(OsString::from));
-        let output = build_command(tools, args).output().await?;
+        let temp = RunTemp::create()?;
+        let output = build_command(tools, args, &temp).output().await?;
         if !output.status.success() {
             return Err(errors::classify(&String::from_utf8_lossy(&output.stderr)).into());
         }

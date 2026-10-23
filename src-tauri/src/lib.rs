@@ -93,6 +93,9 @@ fn create_queue(app: &AppHandle, db: Db, components: Arc<ComponentManager>) -> Q
 fn init_logging(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let log_dir = app.path().app_log_dir()?;
     std::fs::create_dir_all(&log_dir)?;
+    if let Err(e) = diagnostics::rotate_log(&log_dir.join("cliprigo.log"), 5 * 1024 * 1024) {
+        eprintln!("log rotation failed: {e}");
+    }
     panic_log::install(log_dir.join("cliprigo.log"));
     let file_appender = tracing_appender::rolling::never(&log_dir, "cliprigo.log");
     tracing_subscriber::fmt()

@@ -49,6 +49,12 @@ pub struct ThumbCache {
 impl ThumbCache {
     pub fn new(dir: PathBuf, proxy: ProxySetting) -> AppResult<Self> {
         std::fs::create_dir_all(&dir)?;
+        // Downloads interrupted by a crash or a failed rename.
+        for entry in std::fs::read_dir(&dir)?.flatten() {
+            if entry.file_name().to_string_lossy().starts_with(".tmp-") {
+                let _ = std::fs::remove_file(entry.path());
+            }
+        }
         Ok(Self {
             dir,
             proxy,
@@ -73,10 +79,18 @@ impl ThumbCache {
         let http = Http::new(self.proxy.get().as_deref())?;
         let result = http.download(url, &tmp, |_, _| {}).await;
         match result {
-            Ok(()) => {
-                std::fs::rename(&tmp, &path)?;
-                Ok(path)
-            }
+            Ok(()) => match std::fs::rename(&tmp, &path) {
+                Ok(()) => Ok(path),
+                // Windows: another request already put the file there and it is open.
+                Err(_) if path.is_file() => {
+                    let _ = std::fs::remove_file(&tmp);
+                    Ok(path)
+                }
+                Err(e) => {
+                    let _ = std::fs::remove_file(&tmp);
+                    Err(e.into())
+                }
+            },
             Err(e) => {
                 let _ = std::fs::remove_file(&tmp);
                 Err(e)
@@ -88,6 +102,19 @@ impl ThumbCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stale_temp_files_are_removed_on_start() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(".tmp-123-0"), b"partial").unwrap();
+        std::fs::write(dir.path().join("abc.jpg"), b"img").unwrap();
+        ThumbCache::new(dir.path().to_owned(), crate::net::test_proxy()).unwrap();
+        let names: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert_eq!(names, ["abc.jpg"]);
+    }
 
     #[test]
     fn allows_only_youtube_image_hosts_over_https() {

@@ -115,6 +115,13 @@ impl Queue {
     }
 
     pub fn add(&self, items: Vec<QueueItemInput>) -> AppResult<Vec<DownloadRecord>> {
+        let result = self.add_items(items);
+        // Items added before a failed insert must still start.
+        self.inner.pump();
+        result
+    }
+
+    fn add_items(&self, items: Vec<QueueItemInput>) -> AppResult<Vec<DownloadRecord>> {
         let settings = self.inner.db.load_settings()?;
         let mut records = Vec::with_capacity(items.len());
         for item in items {
@@ -148,7 +155,6 @@ impl Queue {
             });
             records.push(record);
         }
-        self.inner.pump();
         Ok(records)
     }
 
@@ -187,22 +193,26 @@ impl Queue {
             record.status,
             DownloadStatus::Failed | DownloadStatus::Canceled | DownloadStatus::Interrupted
         );
-        if !retryable || self.is_active(id) {
+        let format = Format::from_db(&record.format, record.quality, record.codec.as_deref())
+            .ok_or_else(|| AppError::Other(format!("unknown format {}", record.format)))?;
+        let settings = self.inner.db.load_settings()?;
+        // Check and claim under one lock: a double click sends two retries at once.
+        if !retryable || !self.inner.reserve(id) {
             return Err(AppError::Other(format!(
                 "download {id} can't be retried while {:?}",
                 record.status
             )));
         }
-        let format = Format::from_db(&record.format, record.quality, record.codec.as_deref())
-            .ok_or_else(|| AppError::Other(format!("unknown format {}", record.format)))?;
-        let settings = self.inner.db.load_settings()?;
         let request = DownloadRequest {
             url: record.url.clone(),
             format,
             output_dir: PathBuf::from(record.output_dir.unwrap_or(settings.download_dir)),
             filename_template: settings.filename_template,
         };
-        self.inner.db.set_status(id, DownloadStatus::Queued, None)?;
+        if let Err(e) = self.inner.db.set_status(id, DownloadStatus::Queued, None) {
+            self.inner.state().order.retain(|o| *o != id);
+            return Err(e);
+        }
         self.inner.enqueue(id, request);
         self.inner.emit_record(id);
         self.inner.pump();
@@ -276,10 +286,22 @@ impl Inner {
         self.state.lock().unwrap_or_else(|e| e.into_inner())
     }
 
+    /// Marks `id` active unless it already is.
+    fn reserve(&self, id: i64) -> bool {
+        let mut state = self.state();
+        if state.order.contains(&id) {
+            return false;
+        }
+        state.order.push(id);
+        true
+    }
+
     fn enqueue(&self, id: i64, request: DownloadRequest) {
         let mut state = self.state();
         state.pending.push_back((id, request));
-        state.order.push(id);
+        if !state.order.contains(&id) {
+            state.order.push(id);
+        }
     }
 
     fn emit_record(&self, id: i64) {
@@ -799,6 +821,43 @@ mod tests {
         assert!(h.queue.retry(ids[1]).is_err());
         assert!(h.queue.retry(9999).is_err());
         h.queue.cancel_all().await;
+    }
+
+    /// A double click on Retry sends two commands at once: only one may enqueue,
+    /// otherwise two yt-dlp processes write the same files and one can't be canceled.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn concurrent_retries_enqueue_once() {
+        let h = harness(4);
+        for _ in 0..30 {
+            let r =
+                h.db.insert_download(&NewDownload {
+                    url: "fake://block/x".into(),
+                    format: "audio_m4a".into(),
+                    ..Default::default()
+                })
+                .unwrap();
+            h.db.set_status(r.id, DownloadStatus::Failed, None).unwrap();
+            let barrier = std::sync::Barrier::new(2);
+            let ok = std::thread::scope(|s| {
+                let handles: Vec<_> = (0..2)
+                    .map(|_| {
+                        s.spawn(|| {
+                            barrier.wait();
+                            h.queue.retry(r.id).is_ok()
+                        })
+                    })
+                    .collect();
+                handles
+                    .into_iter()
+                    .map(|t| t.join().unwrap())
+                    .filter(|ok| *ok)
+                    .count()
+            });
+            assert_eq!(ok, 1, "record {}", r.id);
+            let queued = h.queue.list().unwrap();
+            assert_eq!(queued.iter().filter(|e| e.record.id == r.id).count(), 1);
+            h.queue.cancel_all().await;
+        }
     }
 
     #[tokio::test(start_paused = true)]

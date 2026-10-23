@@ -187,6 +187,10 @@ impl ComponentManager {
         })
     }
 
+    fn has_release(&self, c: Component, tag: &str) -> bool {
+        self.is_installed(c) && self.manifest().versions.get(&c).map(String::as_str) == Some(tag)
+    }
+
     fn is_installed(&self, c: Component) -> bool {
         c.binaries().iter().all(|b| self.binary_path(b).is_file())
     }
@@ -210,15 +214,21 @@ impl ComponentManager {
 
     /// Installs (or reinstalls) the latest release of `c`. Returns the installed version.
     pub async fn install(&self, c: Component, on_progress: ProgressFn<'_>) -> AppResult<String> {
-        let _guard = self.install_lock.lock().await;
+        let (_guard, waited) = match self.install_lock.try_lock() {
+            Ok(guard) => (guard, false),
+            Err(_) => (self.install_lock.lock().await, true),
+        };
         let tag = self.http()?.latest_tag(c.repo()).await?;
+        // The install we waited for may have just put this release in place.
+        if waited && self.has_release(c, &tag) {
+            return Ok(tag);
+        }
         tracing::info!(component = ?c, tag, "installing component");
         match c {
             Component::Ytdlp => self.install_ytdlp(&tag, on_progress).await?,
             Component::Ffmpeg => self.install_ffmpeg(&tag, on_progress).await?,
             Component::Deno => self.install_deno(&tag, on_progress).await?,
         }
-        self.smoke_test(c).await?;
         self.update_manifest(|m| {
             m.versions.insert(c, tag.clone());
         })?;
@@ -346,32 +356,16 @@ impl ComponentManager {
             downloaded: 0,
             total: None,
         });
-        let result = fsutil::install_file(tmp, dest).await;
+        let result = async {
+            fsutil::prepare(tmp).await?;
+            smoke_test(c, tmp).await?;
+            fsutil::replace(tmp, dest)
+        }
+        .await;
         if result.is_err() {
             let _ = std::fs::remove_file(tmp);
         }
         result
-    }
-
-    /// Runs each binary once so a broken download, missing loader or antivirus block
-    /// surfaces right after install rather than in the middle of a video download.
-    async fn smoke_test(&self, c: Component) -> AppResult<()> {
-        for name in c.binaries() {
-            let path = self.binary_path(name);
-            let output = tokio::time::timeout(
-                SMOKE_TEST_TIMEOUT,
-                crate::process::output(crate::process::command(&path).arg(c.version_arg())),
-            )
-            .await
-            .map_err(|_| AppError::Other(format!("{name} did not respond")))??;
-            if !output.status.success() {
-                return Err(AppError::Other(format!(
-                    "{name} failed to run: {}",
-                    String::from_utf8_lossy(&output.stderr).trim()
-                )));
-            }
-        }
-        Ok(())
     }
 
     pub async fn check_updates(&self) -> AppResult<Vec<UpdateInfo>> {
@@ -418,6 +412,26 @@ impl ComponentManager {
     }
 }
 
+/// Runs a new binary once, before it replaces the current one, so a broken download,
+/// missing loader or antivirus block fails the install and keeps the working version.
+async fn smoke_test(c: Component, path: &Path) -> AppResult<()> {
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let name = name.trim_start_matches(fsutil::TMP_PREFIX);
+    let output = tokio::time::timeout(
+        SMOKE_TEST_TIMEOUT,
+        crate::process::output(crate::process::command(path).arg(c.version_arg())),
+    )
+    .await
+    .map_err(|_| AppError::Other(format!("{name} did not respond")))??;
+    if !output.status.success() {
+        return Err(AppError::Other(format!(
+            "{name} failed to run: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
+    Ok(())
+}
+
 fn extract_zip_entry(zip_path: &Path, entry: &str, dest: &Path) -> AppResult<()> {
     let file = std::fs::File::open(zip_path)?;
     let mut archive =
@@ -434,6 +448,63 @@ fn extract_zip_entry(zip_path: &Path, entry: &str, dest: &Path) -> AppResult<()>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    fn script(path: &Path, body: &str) {
+        std::fs::write(path, format!("#!/bin/sh\n{body}\n")).unwrap();
+    }
+
+    /// A new binary that doesn't run (antivirus, missing loader, broken download)
+    /// must not replace the working one: is_installed() would trust it afterwards.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn broken_update_keeps_the_working_binary() {
+        let dir = tempfile::tempdir().unwrap();
+        let manager =
+            ComponentManager::new(dir.path().to_owned(), crate::net::test_proxy()).unwrap();
+        let dest = manager.ytdlp_path();
+        script(&dest, "echo old");
+        let tmp = manager.tmp_path("yt-dlp");
+        script(&tmp, "echo broken >&2; exit 1");
+
+        let result = manager
+            .finish(Component::Ytdlp, "yt-dlp", &tmp, &dest, &|_| {})
+            .await;
+        assert!(result.is_err(), "{result:?}");
+        assert!(std::fs::read_to_string(&dest).unwrap().contains("echo old"));
+        assert!(!tmp.exists());
+
+        script(&tmp, "echo 2026.10.21");
+        manager
+            .finish(Component::Ytdlp, "yt-dlp", &tmp, &dest, &|_| {})
+            .await
+            .unwrap();
+        assert!(
+            std::fs::read_to_string(&dest)
+                .unwrap()
+                .contains("2026.10.21")
+        );
+    }
+
+    /// An install queued behind another one (a reloaded Setup, auto-update during a
+    /// manual update) must not download the same release again.
+    #[test]
+    fn install_is_skipped_only_when_this_release_is_in_place() {
+        let dir = tempfile::tempdir().unwrap();
+        let manager =
+            ComponentManager::new(dir.path().to_owned(), crate::net::test_proxy()).unwrap();
+        assert!(!manager.has_release(Component::Deno, "v2.9.8"));
+        std::fs::write(manager.deno_path(), b"").unwrap();
+        assert!(!manager.has_release(Component::Deno, "v2.9.8"));
+        manager
+            .update_manifest(|m| {
+                m.versions.insert(Component::Deno, "v2.9.8".into());
+            })
+            .unwrap();
+        assert!(manager.has_release(Component::Deno, "v2.9.8"));
+        assert!(!manager.has_release(Component::Deno, "v2.9.9"));
+        assert!(!manager.has_release(Component::Ffmpeg, "v2.9.8"));
+    }
 
     /// Checksum files of the latest releases must list every asset of every platform,
     /// in a format we can parse. Runs in CI: `cargo test checksums -- --ignored`.

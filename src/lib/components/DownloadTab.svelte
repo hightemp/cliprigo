@@ -153,12 +153,16 @@
 
   async function enqueue(items: QueueItemInput[]) {
     adding = true;
+    const token = probeToken;
     try {
       await api.queueAdd(items);
       toast(t("download.added"));
-      url = "";
-      info = null;
-      result = null;
+      // Keep a link the user pasted while the items were being added.
+      if (token === probeToken) {
+        url = "";
+        info = null;
+        result = null;
+      }
     } catch (err) {
       toastError(err);
     } finally {
@@ -210,8 +214,10 @@
 </script>
 
 <div class="tab">
+  <!-- novalidate: links typed without https:// are fine, the backend adds it. -->
   <form
     class="url-row"
+    novalidate
     onsubmit={(e) => {
       e.preventDefault();
       probe();

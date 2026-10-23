@@ -23,6 +23,7 @@ pub fn normalize(input: &str) -> String {
     let Some(mut url) = parse(trimmed) else {
         return trimmed.to_string();
     };
+    let trimmed = with_scheme(trimmed);
     let segments: Vec<&str> = url
         .path_segments()
         .map(|s| s.filter(|seg| !seg.is_empty()).collect())
@@ -62,9 +63,18 @@ pub fn is_single_video(input: &str) -> bool {
     }
 }
 
-/// Parses an http(s) URL on a YouTube host.
+/// Adds `https://` to links typed or copied without a scheme.
+fn with_scheme(input: &str) -> String {
+    if input.contains("://") {
+        input.to_string()
+    } else {
+        format!("https://{input}")
+    }
+}
+
+/// Parses an http(s) URL on a YouTube host, with or without the scheme.
 fn parse(input: &str) -> Option<Url> {
-    let url = Url::parse(input.trim()).ok()?;
+    let url = Url::parse(&with_scheme(input.trim())).ok()?;
     let host = url.host_str()?;
     (matches!(url.scheme(), "http" | "https") && YOUTUBE_HOSTS.contains(&host)).then_some(url)
 }
@@ -93,12 +103,31 @@ mod tests {
             "https://notyoutube.com/watch?v=x",
             "https://youtube.com.evil.com/watch?v=x",
             "ftp://youtube.com/watch?v=x",
-            "youtube.com/watch?v=x",
             "",
             "not a url",
         ] {
             assert!(!is_youtube(u), "{u}");
         }
+    }
+
+    /// Links typed or copied without the scheme, e.g. from the address bar.
+    #[test]
+    fn links_without_scheme_get_https() {
+        let watch_in_list = "youtube.com/watch?v=dQw4w9WgXcQ&list=PLBCF2DAC6FFB574DE";
+        assert!(is_youtube(watch_in_list));
+        assert!(is_single_video(watch_in_list));
+        assert_eq!(normalize(watch_in_list), format!("https://{watch_in_list}"));
+        assert_eq!(
+            normalize(" youtu.be/dQw4w9WgXcQ "),
+            "https://youtu.be/dQw4w9WgXcQ"
+        );
+        assert_eq!(
+            normalize("www.youtube.com/@YouTube"),
+            "https://www.youtube.com/@YouTube/videos"
+        );
+        // Other input is passed through as typed.
+        assert!(!is_youtube("example.com/watch?v=x"));
+        assert_eq!(normalize("example.com/x"), "example.com/x");
     }
 
     #[test]

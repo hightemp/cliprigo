@@ -240,14 +240,12 @@ pub fn cleanup_candidates(dir_listing: &[String], seen: &[PathBuf]) -> Vec<Strin
                         .strip_prefix(s.as_str())
                         .is_some_and(is_temp_suffix)
             })
-            // Other format parts and the merger's temp file of the same video.
+            // Other format parts (finished ones too: a retry reports parts from an
+            // earlier attempt only as "finished") and the merger's temp file.
             || bases.iter().any(|base| {
                 name.strip_prefix(base)
                     .and_then(|rest| rest.strip_prefix('.'))
-                    .is_some_and(|rest| {
-                        rest.starts_with("temp.")
-                            || (is_format_part(rest) && is_temp_suffix(rest))
-                    })
+                    .is_some_and(|rest| rest.starts_with("temp.") || is_format_part(rest))
             })
         })
         .cloned()
@@ -428,6 +426,8 @@ mod tests {
             "Song [id1].f394.mp4.ytdl",
             "Song [id1].f394.mp4.part-Frag3",
             "Song [id1].f140.m4a.part",
+            // Finished by an earlier attempt, reported only as "finished" on retry.
+            "Song [id1].f137.mp4",
             "Song [id1].temp.mp4",
             "Song [id1].mp4",  // finished earlier: keep
             "Song [id1].webp", // unrelated: keep
@@ -441,6 +441,7 @@ mod tests {
         assert_eq!(
             got,
             vec![
+                "Song [id1].f137.mp4",
                 "Song [id1].f140.m4a.part",
                 "Song [id1].f394.mp4.part",
                 "Song [id1].f394.mp4.part-Frag3",

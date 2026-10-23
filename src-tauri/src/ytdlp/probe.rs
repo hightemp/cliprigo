@@ -61,9 +61,11 @@ pub fn parse_probe(json: &str) -> AppResult<ProbeResult> {
             .get("entries")
             .and_then(Value::as_array)
             .map(|e| {
+                let mut seen = std::collections::HashSet::new();
                 e.iter()
                     .filter_map(Value::as_object)
                     .filter_map(entry)
+                    .filter(|e| seen.insert(e.id.clone()))
                     .collect()
             })
             .unwrap_or_default();
@@ -210,6 +212,20 @@ mod tests {
         let private = p.entries.last().unwrap();
         assert!(!private.available);
         assert_eq!(private.thumbnail, None);
+    }
+
+    /// User playlists may hold one video twice; the UI keys rows by id and crashed.
+    #[test]
+    fn playlist_entries_are_unique() {
+        let json = r#"{"_type":"playlist","id":"PL1","title":"t","entries":[
+            {"id":"a","url":"https://www.youtube.com/watch?v=a"},
+            {"id":"b","url":"https://www.youtube.com/watch?v=b"},
+            {"id":"a","url":"https://www.youtube.com/watch?v=a"}]}"#;
+        let ProbeResult::Playlist(p) = parse_probe(json).unwrap() else {
+            panic!("expected playlist");
+        };
+        let ids: Vec<_> = p.entries.iter().map(|e| e.id.as_str()).collect();
+        assert_eq!(ids, ["a", "b"]);
     }
 
     #[test]

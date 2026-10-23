@@ -308,7 +308,8 @@ pub fn diagnostics(
         .path()
         .app_log_dir()
         .ok()
-        .and_then(|dir| std::fs::read_to_string(dir.join("cliprigo.log")).ok())
+        .map(|dir| crate::diagnostics::read_log_tail(&dir.join("cliprigo.log"), 64 * 1024))
+        .filter(|log| !log.is_empty())
         .map(|log| crate::diagnostics::tail_lines(&log, LOG_LINES))
         .unwrap_or_else(|| "(no log)".into());
     Ok(crate::diagnostics::format_report(

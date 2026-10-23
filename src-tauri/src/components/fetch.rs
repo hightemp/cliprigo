@@ -10,6 +10,8 @@ use crate::error::{AppError, AppResult};
 
 const USER_AGENT: &str = concat!("Cliprigo/", env!("CARGO_PKG_VERSION"));
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
+/// No bytes for this long means the connection is dead: reqwest has no default.
+const READ_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct Http {
     client: Client,
@@ -20,10 +22,15 @@ pub struct Http {
 impl Http {
     /// `proxy` overrides the environment's proxy for every request.
     pub fn new(proxy: Option<&str>) -> AppResult<Self> {
+        Self::with_read_timeout(proxy, READ_TIMEOUT)
+    }
+
+    pub fn with_read_timeout(proxy: Option<&str>, read_timeout: Duration) -> AppResult<Self> {
         let build = |policy| {
             let mut builder = Client::builder()
                 .user_agent(USER_AGENT)
                 .connect_timeout(Duration::from_secs(15))
+                .read_timeout(read_timeout)
                 .redirect(policy);
             if let Some(proxy) = proxy {
                 builder = builder.proxy(reqwest::Proxy::all(proxy)?);
@@ -234,6 +241,36 @@ mod tests {
             find_checksum(listing, "deno-aarch64-pc-windows-msvc.zip"),
             None
         );
+    }
+
+    /// A server that sends headers and then goes silent must not hang an install
+    /// forever (it holds the install lock).
+    #[tokio::test]
+    async fn stalled_download_times_out() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = [0u8; 1024];
+            let _ = tokio::io::AsyncReadExt::read(&mut socket, &mut buf).await;
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\nabc")
+                .await
+                .unwrap();
+            tokio::time::sleep(Duration::from_secs(30)).await;
+        });
+        let http = Http::with_read_timeout(None, Duration::from_millis(300)).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let started = Instant::now();
+        let result = http
+            .download(
+                &format!("http://{addr}/x"),
+                &dir.path().join("x"),
+                |_, _| {},
+            )
+            .await;
+        assert!(result.is_err(), "{result:?}");
+        assert!(started.elapsed() < Duration::from_secs(5));
     }
 
     #[tokio::test]

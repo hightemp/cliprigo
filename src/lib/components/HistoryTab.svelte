@@ -4,6 +4,7 @@
   import { api } from "$lib/api";
   import { errorMessage, parseStoredError } from "$lib/errors";
   import { formatBytes, formatDate, formatDuration } from "$lib/format";
+  import { appendPage } from "$lib/history";
   import { formatFromRecord } from "$lib/selection";
   import { app, copyDetails, t, toast, toastError } from "$lib/state.svelte";
   import {
@@ -44,7 +45,7 @@
         limit: PAGE,
       });
       if (id !== requestId) return;
-      items = reset ? page : [...items, ...page];
+      items = reset ? page : appendPage(items, page);
       hasMore = page.length === PAGE;
     } catch (err) {
       toastError(err);

@@ -5,13 +5,11 @@ use crate::error::AppResult;
 pub const TMP_PREFIX: &str = ".tmp-";
 pub const OLD_SUFFIX: &str = ".old";
 
-/// Moves a freshly downloaded binary from `tmp` to `dest` and makes it runnable.
-/// Both paths must be in the same directory so the rename is atomic.
-pub async fn install_file(tmp: &Path, dest: &Path) -> AppResult<()> {
+/// Makes a freshly downloaded binary runnable in place, before it is checked.
+pub async fn prepare(tmp: &Path) -> AppResult<()> {
     make_executable(tmp)?;
-    replace(tmp, dest)?;
     #[cfg(target_os = "macos")]
-    macos_fixup(dest).await;
+    macos_fixup(tmp).await;
     Ok(())
 }
 
@@ -27,8 +25,9 @@ fn make_executable(_path: &Path) -> AppResult<()> {
     Ok(())
 }
 
+/// Moves `tmp` over `dest`. Both must be in the same directory so the rename is atomic.
 #[cfg(unix)]
-fn replace(tmp: &Path, dest: &Path) -> AppResult<()> {
+pub fn replace(tmp: &Path, dest: &Path) -> AppResult<()> {
     // Running processes keep the old inode, so replacing in use binaries is safe.
     std::fs::rename(tmp, dest)?;
     Ok(())
@@ -37,7 +36,7 @@ fn replace(tmp: &Path, dest: &Path) -> AppResult<()> {
 /// Windows can't overwrite a running executable but can rename it, so the current
 /// binary is moved aside (and cleaned up on next start) before the new one takes its place.
 #[cfg(not(unix))]
-fn replace(tmp: &Path, dest: &Path) -> AppResult<()> {
+pub fn replace(tmp: &Path, dest: &Path) -> AppResult<()> {
     if dest.exists() {
         let mut old = dest.as_os_str().to_owned();
         old.push(OLD_SUFFIX);
