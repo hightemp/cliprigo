@@ -216,7 +216,9 @@ fn sweep_stale_runs(root: &Path) {
 
 fn build_command(tools: &Tools, args: Vec<OsString>, temp: &RunTemp) -> Command {
     let mut cmd = crate::process::command(&tools.ytdlp);
-    cmd.args(args)
+    cmd.args(&tools.ytdlp_prefix)
+        .args(args)
+        .envs(tools.env.iter().map(|(k, v)| (k, v)))
         .env("TMPDIR", &temp.0)
         .env("TMP", &temp.0)
         .env("TEMP", &temp.0)
@@ -404,8 +406,10 @@ mod tests {
         std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
         Tools {
             ytdlp: script,
+            ytdlp_prefix: Vec::new(),
+            env: Vec::new(),
             ffmpeg: dir.join("ffmpeg"),
-            deno: dir.join("deno"),
+            js_runtime: crate::ytdlp::args::JsRuntime::Deno(dir.join("deno")),
             proxy: None,
         }
     }
@@ -460,6 +464,28 @@ mod tests {
         assert!(args.contains(&"PYTHONUTF8=1".to_string()));
         // Progress must arrive line by line, not in blocks (seen on Windows).
         assert!(args.contains(&"PYTHONUNBUFFERED=1".to_string()));
+    }
+
+    /// On Android yt-dlp is a zipapp started by the bundled Python, which needs its
+    /// library paths in the environment.
+    #[tokio::test]
+    async fn interpreter_gets_the_zipapp_first_and_its_environment() {
+        let dir = tempfile::tempdir().unwrap();
+        let fixture = dir.path().join("probe.json");
+        std::fs::write(&fixture, PROBE_VIDEO).unwrap();
+        let script = format!(
+            "echo \"PYTHONHOME=$PYTHONHOME\" >> '{}'; cat '{}'",
+            dir.path().join("args.txt").display(),
+            fixture.display()
+        );
+        let mut tools = fake_tools(dir.path(), &script);
+        tools.ytdlp_prefix = vec!["/data/bin/yt-dlp".into()];
+        tools.env = vec![("PYTHONHOME".into(), "/data/python/usr".into())];
+
+        probe(&tools, "https://youtu.be/dQw4w9WgXcQ").await.unwrap();
+        let args = recorded_args(dir.path());
+        assert_eq!(args[0], "/data/bin/yt-dlp");
+        assert!(args.contains(&"PYTHONHOME=/data/python/usr".to_string()));
     }
 
     #[tokio::test]

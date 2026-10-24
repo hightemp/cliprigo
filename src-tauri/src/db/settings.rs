@@ -29,7 +29,10 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        let download_dir = dirs::download_dir()
+        // Set by the Android app (Download/Cliprigo); dirs knows no Android folders.
+        let download_dir = std::env::var_os("CLIPRIGO_DOWNLOAD_DIR")
+            .map(std::path::PathBuf::from)
+            .or_else(dirs::download_dir)
             .or_else(dirs::home_dir)
             .map(|p| p.to_string_lossy().into_owned())
             .unwrap_or_default();

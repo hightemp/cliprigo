@@ -1,3 +1,4 @@
+mod bundled;
 pub(crate) mod fetch;
 mod fsutil;
 mod platform;
@@ -12,13 +13,17 @@ use serde::{Deserialize, Serialize};
 use crate::db::now_unix;
 use crate::error::{AppError, AppResult};
 use crate::net::ProxySetting;
-use crate::ytdlp::args::Tools;
+use crate::ytdlp::args::{JsRuntime, Tools};
+use bundled::Bundled;
 use fetch::Http;
 use platform::Assets;
 
 const YTDLP_REPO: &str = "yt-dlp/yt-dlp";
 const FFMPEG_REPO: &str = "shaka-project/static-ffmpeg-binaries";
 const DENO_REPO: &str = "denoland/deno";
+
+/// Version shown for components shipped inside the Android APK.
+const BUNDLED_VERSION: &str = "bundled";
 
 const MANIFEST_FILE: &str = "manifest.json";
 const AUTO_UPDATE_INTERVAL_SECS: i64 = 6 * 60 * 60;
@@ -114,10 +119,35 @@ pub struct ComponentManager {
     manifest: Mutex<Manifest>,
     /// One install at a time: avoids two writers racing on the same temp files.
     install_lock: tokio::sync::Mutex<()>,
+    /// Android: ffmpeg and QuickJS come with the app, yt-dlp is a zipapp run by Python.
+    bundled: Option<Bundled>,
 }
 
 impl ComponentManager {
     pub fn new(bin_dir: PathBuf, proxy: ProxySetting) -> AppResult<Self> {
+        let bundled = if cfg!(target_os = "android") {
+            let bundled = Bundled::from_env().ok_or_else(|| {
+                AppError::Other("bundled tool paths are not set by MainActivity".into())
+            })?;
+            // Takes a few seconds on first start; tools() waits for it.
+            let background = bundled.clone();
+            std::thread::spawn(move || {
+                if let Err(e) = background.prepare() {
+                    tracing::error!(error = %e, "unpacking bundled tools failed");
+                }
+            });
+            Some(bundled)
+        } else {
+            None
+        };
+        Self::with_bundled(bin_dir, proxy, bundled)
+    }
+
+    fn with_bundled(
+        bin_dir: PathBuf,
+        proxy: ProxySetting,
+        bundled: Option<Bundled>,
+    ) -> AppResult<Self> {
         std::fs::create_dir_all(&bin_dir)?;
         fsutil::cleanup(&bin_dir);
         let manifest = std::fs::read(bin_dir.join(MANIFEST_FILE))
@@ -125,7 +155,11 @@ impl ComponentManager {
             .and_then(|raw| serde_json::from_slice(&raw).ok())
             .unwrap_or_default();
         Ok(Self {
-            assets: platform::current()?,
+            assets: match bundled {
+                Some(_) => platform::zipapp(),
+                None => platform::current()?,
+            },
+            bundled,
             proxy,
             manifest: Mutex::new(manifest),
             install_lock: tokio::sync::Mutex::new(()),
@@ -179,11 +213,27 @@ impl ComponentManager {
         if let Some(missing) = Component::ALL.into_iter().find(|c| !self.is_installed(*c)) {
             return Err(AppError::ComponentsMissing(format!("{missing:?}")));
         }
-        Ok(Tools {
-            ytdlp: self.ytdlp_path(),
-            ffmpeg: self.ffmpeg_path(),
-            deno: self.deno_path(),
-            proxy: self.proxy.get(),
+        let proxy = self.proxy.get();
+        Ok(match &self.bundled {
+            Some(b) => {
+                b.prepare()?;
+                Tools {
+                    ytdlp: b.python(),
+                    ytdlp_prefix: vec![self.ytdlp_path().into()],
+                    env: b.env(),
+                    ffmpeg: b.ffmpeg(),
+                    js_runtime: JsRuntime::QuickJs(b.quickjs()),
+                    proxy,
+                }
+            }
+            None => Tools {
+                ytdlp: self.ytdlp_path(),
+                ytdlp_prefix: Vec::new(),
+                env: Vec::new(),
+                ffmpeg: self.ffmpeg_path(),
+                js_runtime: JsRuntime::Deno(self.deno_path()),
+                proxy,
+            },
         })
     }
 
@@ -192,7 +242,23 @@ impl ComponentManager {
     }
 
     fn is_installed(&self, c: Component) -> bool {
-        c.binaries().iter().all(|b| self.binary_path(b).is_file())
+        match (&self.bundled, c) {
+            (Some(b), Component::Ffmpeg) => b.ffmpeg().is_file(),
+            (Some(b), Component::Deno) => b.quickjs().is_file(),
+            _ => c.binaries().iter().all(|b| self.binary_path(b).is_file()),
+        }
+    }
+
+    /// Shipped with the app: never downloaded or updated.
+    fn is_bundled(&self, c: Component) -> bool {
+        self.bundled.is_some() && c != Component::Ytdlp
+    }
+
+    fn version(&self, manifest: &Manifest, c: Component) -> Option<String> {
+        if self.is_bundled(c) {
+            return Some(BUNDLED_VERSION.into());
+        }
+        manifest.versions.get(&c).cloned()
     }
 
     pub fn status(&self) -> Vec<ComponentStatus> {
@@ -205,7 +271,7 @@ impl ComponentManager {
                     component,
                     installed,
                     version: installed
-                        .then(|| manifest.versions.get(&component).cloned())
+                        .then(|| self.version(&manifest, component))
                         .flatten(),
                 }
             })
@@ -214,6 +280,9 @@ impl ComponentManager {
 
     /// Installs (or reinstalls) the latest release of `c`. Returns the installed version.
     pub async fn install(&self, c: Component, on_progress: ProgressFn<'_>) -> AppResult<String> {
+        if self.is_bundled(c) {
+            return Ok(BUNDLED_VERSION.into());
+        }
         let (_guard, waited) = match self.install_lock.try_lock() {
             Ok(guard) => (guard, false),
             Err(_) => (self.install_lock.lock().await, true),
@@ -357,8 +426,11 @@ impl ComponentManager {
             total: None,
         });
         let result = async {
+            if let Some(b) = &self.bundled {
+                b.prepare()?;
+            }
             fsutil::prepare(tmp).await?;
-            smoke_test(c, tmp).await?;
+            smoke_test(self.smoke_test_command(c, tmp), tmp).await?;
             fsutil::replace(tmp, dest)
         }
         .await;
@@ -368,9 +440,26 @@ impl ComponentManager {
         result
     }
 
+    /// `<binary> --version`, or `python <zipapp> --version` on Android.
+    fn smoke_test_command(&self, c: Component, path: &Path) -> tokio::process::Command {
+        let mut cmd = match &self.bundled {
+            Some(b) => {
+                let mut cmd = crate::process::command(&b.python());
+                cmd.arg(path).envs(b.env());
+                cmd
+            }
+            None => crate::process::command(path),
+        };
+        cmd.arg(c.version_arg());
+        cmd
+    }
+
     pub async fn check_updates(&self) -> AppResult<Vec<UpdateInfo>> {
         let mut result = Vec::with_capacity(Component::ALL.len());
         for component in Component::ALL {
+            if self.is_bundled(component) {
+                continue;
+            }
             let latest = self.http()?.latest_tag(component.repo()).await?;
             let current = self
                 .status()
@@ -414,15 +503,12 @@ impl ComponentManager {
 
 /// Runs a new binary once, before it replaces the current one, so a broken download,
 /// missing loader or antivirus block fails the install and keeps the working version.
-async fn smoke_test(c: Component, path: &Path) -> AppResult<()> {
+async fn smoke_test(mut cmd: tokio::process::Command, path: &Path) -> AppResult<()> {
     let name = path.file_name().unwrap_or_default().to_string_lossy();
     let name = name.trim_start_matches(fsutil::TMP_PREFIX);
-    let output = tokio::time::timeout(
-        SMOKE_TEST_TIMEOUT,
-        crate::process::output(crate::process::command(path).arg(c.version_arg())),
-    )
-    .await
-    .map_err(|_| AppError::Other(format!("{name} did not respond")))??;
+    let output = tokio::time::timeout(SMOKE_TEST_TIMEOUT, crate::process::output(&mut cmd))
+        .await
+        .map_err(|_| AppError::Other(format!("{name} did not respond")))??;
     if !output.status.success() {
         return Err(AppError::Other(format!(
             "{name} failed to run: {}",
@@ -504,6 +590,112 @@ mod tests {
         assert!(manager.has_release(Component::Deno, "v2.9.8"));
         assert!(!manager.has_release(Component::Deno, "v2.9.9"));
         assert!(!manager.has_release(Component::Ffmpeg, "v2.9.8"));
+    }
+
+    /// Android layout: native libraries from the APK and the packages MainActivity unpacked.
+    #[cfg(unix)]
+    fn android_manager(dir: &Path) -> ComponentManager {
+        let lib_dir = dir.join("lib");
+        let packages = dir.join("packages");
+        std::fs::create_dir_all(&lib_dir).unwrap();
+        for archive in ["libpython.zip.so", "libffmpeg.zip.so"] {
+            let mut zip =
+                zip::ZipWriter::new(std::fs::File::create(lib_dir.join(archive)).unwrap());
+            zip.add_directory("usr/lib/", zip::write::SimpleFileOptions::default())
+                .unwrap();
+            zip.finish().unwrap();
+        }
+        // Fake Python: runs the "zipapp" as a shell script.
+        script(&lib_dir.join("libpython.so"), "exec /bin/sh \"$@\"");
+        for lib in ["libffmpeg.so", "libffprobe.so", "libqjs.so"] {
+            script(&lib_dir.join(lib), "true");
+        }
+        for f in std::fs::read_dir(&lib_dir).unwrap() {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(f.unwrap().path(), std::fs::Permissions::from_mode(0o755))
+                .unwrap();
+        }
+        ComponentManager::with_bundled(
+            dir.join("bin"),
+            crate::net::test_proxy(),
+            Some(Bundled::new(lib_dir, packages)),
+        )
+        .unwrap()
+    }
+
+    /// On Android ffmpeg and QuickJS ship in the APK; only the yt-dlp zipapp is
+    /// downloaded, and Python runs it.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn android_runs_the_ytdlp_zipapp_with_bundled_tools() {
+        let dir = tempfile::tempdir().unwrap();
+        let manager = android_manager(dir.path());
+        let installed = |c| {
+            manager
+                .status()
+                .into_iter()
+                .find(|s| s.component == c)
+                .unwrap()
+        };
+        assert!(installed(Component::Ffmpeg).installed);
+        assert!(installed(Component::Deno).installed);
+        assert!(!installed(Component::Ytdlp).installed);
+        assert!(matches!(
+            manager.tools(),
+            Err(AppError::ComponentsMissing(c)) if c == "Ytdlp"
+        ));
+        // Bundled components need no download, so this works offline.
+        assert_eq!(
+            manager.install(Component::Ffmpeg, &|_| {}).await.unwrap(),
+            BUNDLED_VERSION
+        );
+
+        let zipapp = dir.path().join("bin/yt-dlp");
+        std::fs::write(&zipapp, "echo 2026.10.21").unwrap();
+        let tools = manager.tools().unwrap();
+        // Python's libraries are unpacked before anything runs.
+        assert!(dir.path().join("packages/python/usr/lib").is_dir());
+        let lib = dir.path().join("lib");
+        assert_eq!(tools.ytdlp, lib.join("libpython.so"));
+        assert_eq!(tools.ytdlp_prefix, vec![zipapp.into_os_string()]);
+        assert_eq!(tools.ffmpeg, lib.join("libffmpeg.so"));
+        assert_eq!(tools.js_runtime, JsRuntime::QuickJs(lib.join("libqjs.so")));
+        let env: HashMap<String, _> = tools
+            .env
+            .into_iter()
+            .map(|(k, v)| (k.into_string().unwrap(), v))
+            .collect();
+        let python = dir.path().join("packages/python/usr");
+        assert_eq!(env["PYTHONHOME"], python.as_os_str());
+        assert_eq!(
+            env["SSL_CERT_FILE"],
+            python.join("etc/tls/cert.pem").as_os_str()
+        );
+        let ld = env["LD_LIBRARY_PATH"].to_string_lossy().into_owned();
+        assert!(ld.contains("packages/python/usr/lib") && ld.contains("packages/ffmpeg/usr/lib"));
+    }
+
+    /// A new zipapp is checked through Python before it replaces the working one.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn android_smoke_tests_ytdlp_through_python() {
+        let dir = tempfile::tempdir().unwrap();
+        let manager = android_manager(dir.path());
+        let dest = manager.ytdlp_path();
+        let tmp = manager.tmp_path("yt-dlp");
+        std::fs::write(&tmp, "exit 1").unwrap();
+        let result = manager
+            .finish(Component::Ytdlp, "yt-dlp", &tmp, &dest, &|_| {})
+            .await;
+        assert!(result.is_err(), "{result:?}");
+        assert!(!dest.exists());
+
+        std::fs::write(&tmp, "[ \"$1\" = --version ] && echo 2026.10.21").unwrap();
+        manager
+            .finish(Component::Ytdlp, "yt-dlp", &tmp, &dest, &|_| {})
+            .await
+            .unwrap();
+        assert!(dest.is_file());
     }
 
     /// Checksum files of the latest releases must list every asset of every platform,

@@ -546,4 +546,19 @@
     display: flex;
     justify-content: flex-end;
   }
+
+  @media (max-width: 600px) {
+    .url-row {
+      flex-wrap: wrap;
+    }
+
+    .url-input {
+      flex-basis: 100%;
+    }
+
+    .url-row .btn {
+      flex: 1;
+      justify-content: center;
+    }
+  }
 </style>

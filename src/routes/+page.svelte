@@ -144,7 +144,8 @@
     display: flex;
     align-items: center;
     gap: 24px;
-    padding: 10px 20px;
+    /* Android draws the app under the status bar. */
+    padding: max(10px, env(safe-area-inset-top)) 20px 10px;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
   }
@@ -199,7 +200,32 @@
     width: 100%;
     max-width: 880px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 20px 20px max(20px, env(safe-area-inset-bottom));
+  }
+
+  @media (max-width: 600px) {
+    header {
+      padding: max(6px, env(safe-area-inset-top)) 8px 6px;
+    }
+
+    .brand {
+      display: none;
+    }
+
+    .tabs {
+      flex: 1;
+    }
+
+    .tabs button {
+      flex: 1;
+      justify-content: center;
+      height: 40px;
+      padding: 0 6px;
+    }
+
+    main {
+      padding: 12px 12px max(12px, env(safe-area-inset-bottom));
+    }
   }
 
   .center {
@@ -218,7 +244,7 @@
   .toast {
     position: fixed;
     left: 50%;
-    bottom: 20px;
+    bottom: max(20px, env(safe-area-inset-bottom));
     transform: translateX(-50%);
     max-width: min(560px, calc(100vw - 32px));
     padding: 10px 16px;

@@ -45,6 +45,46 @@ impl ProxySetting {
     }
 }
 
+/// Client builder for the app's own requests (tool downloads, thumbnails, proxy check).
+pub fn client_builder() -> reqwest::ClientBuilder {
+    let builder = reqwest::Client::builder();
+    #[cfg(target_os = "android")]
+    let builder = builder.tls_certs_only(android_root_certificates());
+    builder
+}
+
+/// The default verifier (rustls-platform-verifier) needs JNI setup on Android, while
+/// the system store is a directory of PEM files. Android 14+ keeps the updatable store
+/// in the Conscrypt module.
+#[cfg(target_os = "android")]
+fn android_root_certificates() -> Vec<reqwest::Certificate> {
+    [
+        "/apex/com.android.conscrypt/cacerts",
+        "/system/etc/security/cacerts",
+    ]
+    .into_iter()
+    .map(|dir| read_pem_dir(std::path::Path::new(dir)))
+    .find(|certs| !certs.is_empty())
+    .unwrap_or_default()
+}
+
+/// Every certificate in `dir`; unreadable files are skipped.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn read_pem_dir(dir: &std::path::Path) -> Vec<reqwest::Certificate> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(|e| std::fs::read(e.ok()?.path()).ok())
+        .filter_map(|pem| {
+            use rustls_pki_types::{CertificateDer, pem::PemObject};
+            // reqwest accepts any bytes here and fails later, when building the client.
+            let der = CertificateDer::from_pem_slice(&pem).ok()?;
+            reqwest::Certificate::from_der(&der).ok()
+        })
+        .collect()
+}
+
 /// Proxy for live tests: `CLIPRIGO_TEST_PROXY=http://127.0.0.1:8888 cargo test live_ ...`.
 #[cfg(test)]
 pub fn test_proxy() -> ProxySetting {
@@ -60,6 +100,21 @@ pub fn test_proxy() -> ProxySetting {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Android's store: one PEM per file, followed by a text dump of the certificate.
+    #[test]
+    fn root_certificates_are_read_from_a_pem_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let pem = include_str!("../tests/fixtures/isrg-root-x1.pem");
+        std::fs::write(
+            dir.path().join("4042bcee.0"),
+            format!("{pem}\nCertificate:\n  Data: ...\n"),
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("broken.0"), "not a certificate").unwrap();
+        assert_eq!(read_pem_dir(dir.path()).len(), 1);
+        assert!(read_pem_dir(&dir.path().join("missing")).is_empty());
+    }
 
     #[test]
     fn empty_means_no_proxy() {

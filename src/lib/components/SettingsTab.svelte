@@ -3,6 +3,7 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { api, onComponentProgress } from "$lib/api";
   import { formatBytes, qualityLabel } from "$lib/format";
+  import { componentLabel, isAndroid, isBundled } from "$lib/platform";
   import {
     app,
     applySettings,
@@ -133,14 +134,19 @@
   <section class="card">
     <div class="row">
       <span>{t("settings.downloadDir")}</span>
-      <button
-        class="btn folder"
-        onclick={chooseFolder}
-        title={draft.downloadDir}
-      >
-        <Icon name="folder" size={16} />
-        <span class="ellipsis path"><bdi>{draft.downloadDir}</bdi></span>
-      </button>
+      <!-- Android has no folder picker for plain paths; files go to Download/Cliprigo. -->
+      {#if isAndroid}
+        <span class="ellipsis path muted"><bdi>{draft.downloadDir}</bdi></span>
+      {:else}
+        <button
+          class="btn folder"
+          onclick={chooseFolder}
+          title={draft.downloadDir}
+        >
+          <Icon name="folder" size={16} />
+          <span class="ellipsis path"><bdi>{draft.downloadDir}</bdi></span>
+        </button>
+      {/if}
     </div>
 
     <label class="row">
@@ -287,12 +293,18 @@
         {@const update = updates[c.component]}
         <li>
           <div class="component">
-            <strong>{t(`components.${c.component}`)}</strong>
+            <strong>{t(`components.${componentLabel(c.component)}`)}</strong>
             <span class="muted small"
-              >{c.installed ? c.version : t("settings.notInstalled")}</span
+              >{isBundled(c)
+                ? t("settings.bundled")
+                : c.installed
+                  ? c.version
+                  : t("settings.notInstalled")}</span
             >
           </div>
-          {#if installing === c.component}
+          {#if isBundled(c)}
+            <!-- Updated with the app. -->
+          {:else if installing === c.component}
             <div class="installing muted small">
               {#if progress?.component === c.component && progress.stage === "download"}
                 {formatBytes(progress.downloaded, app.lang)}
@@ -331,22 +343,28 @@
         <Icon name="paste" size={16} />
         {t("settings.copyDiagnostics")}
       </button>
-      <button class="btn" onclick={() => api.openLogs().catch(toastError)}>
-        <Icon name="folder" size={16} />
-        {t("settings.openLogs")}
-      </button>
+      {#if !isAndroid}
+        <button class="btn" onclick={() => api.openLogs().catch(toastError)}>
+          <Icon name="folder" size={16} />
+          {t("settings.openLogs")}
+        </button>
+      {/if}
     </div>
   </section>
 </div>
 
 <style>
+  /* minmax(0, …): a long folder path is cut with an ellipsis instead of widening
+     the page. */
   .tab {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 16px;
   }
 
   section {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 14px;
     padding: 16px;
   }
@@ -469,5 +487,21 @@
   .component {
     flex: 1;
     display: grid;
+  }
+
+  @media (max-width: 600px) {
+    .row:not(.check) {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
+    }
+
+    .row select {
+      min-width: 0;
+    }
+
+    .folder {
+      max-width: 100%;
+    }
   }
 </style>

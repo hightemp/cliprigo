@@ -20,11 +20,14 @@ export const ru: Messages = {
     ytdlp: "yt-dlp",
     ffmpeg: "ffmpeg",
     deno: "Deno",
+    quickjs: "QuickJS",
   },
   setup: {
     title: "Подготовка",
     description:
       "Для работы нужны yt-dlp, ffmpeg и Deno. Они скачиваются один раз из официальных релизов.",
+    descriptionAndroid:
+      "Для работы нужен yt-dlp. Он скачивается один раз из официальных релизов, а ffmpeg и QuickJS встроены в приложение.",
     waiting: "Ожидание",
     downloading: "Скачивание {name}…",
     verifying: "Проверка {name}…",
@@ -170,6 +173,7 @@ export const ru: Messages = {
     upToDate: "Актуальная версия",
     reinstall: "Переустановить",
     notInstalled: "Не установлен",
+    bundled: "Встроен в приложение",
     openLogs: "Открыть папку логов",
     saved: "Сохранено",
   },

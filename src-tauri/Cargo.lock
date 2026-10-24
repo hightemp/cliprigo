@@ -601,6 +601,7 @@ dependencies = [
  "md-5",
  "reqwest",
  "rusqlite",
+ "rustls-pki-types",
  "serde",
  "serde_json",
  "sha2 0.11.1",

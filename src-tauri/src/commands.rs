@@ -219,6 +219,9 @@ fn history_file(db: &Db, id: i64) -> AppResult<std::path::PathBuf> {
 #[tauri::command]
 pub fn history_open(app: AppHandle, db: State<'_, Db>, id: i64) -> AppResult<()> {
     let path = history_file(&db, id)?;
+    #[cfg(target_os = "android")]
+    return app.state::<crate::android::Files<tauri::Wry>>().open(&path);
+    #[cfg(not(target_os = "android"))]
     app.opener()
         .open_path(path.to_string_lossy(), None::<&str>)
         .map_err(|e| AppError::Other(e.to_string()))

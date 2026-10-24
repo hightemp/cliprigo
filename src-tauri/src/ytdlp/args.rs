@@ -10,11 +10,37 @@ pub const FILE_PREFIX: &str = "CLIPRIGO_FILE ";
 
 #[derive(Debug, Clone)]
 pub struct Tools {
+    /// Program to start: the yt-dlp binary, or Python on Android.
     pub ytdlp: PathBuf,
+    /// Arguments before yt-dlp's own: the zipapp when Python runs it.
+    pub ytdlp_prefix: Vec<OsString>,
+    /// Extra environment, e.g. Python's home and libraries on Android.
+    pub env: Vec<(OsString, OsString)>,
     pub ffmpeg: PathBuf,
-    pub deno: PathBuf,
+    pub js_runtime: JsRuntime,
     /// Passed as `--proxy`; `None` leaves yt-dlp to the environment.
     pub proxy: Option<String>,
+}
+
+/// JavaScript runtime yt-dlp needs for YouTube's player challenges.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum JsRuntime {
+    Deno(PathBuf),
+    /// Bundled on Android, where Deno has no builds.
+    QuickJs(PathBuf),
+}
+
+impl JsRuntime {
+    /// `--js-runtimes` value.
+    fn arg(&self) -> OsString {
+        let (name, path) = match self {
+            Self::Deno(path) => ("deno:", path),
+            Self::QuickJs(path) => ("quickjs:", path),
+        };
+        let mut arg = OsString::from(name);
+        arg.push(path);
+        arg
+    }
 }
 
 /// Preferred video codec. YouTube has H.264 only up to 1080p; above that only VP9/AV1.
@@ -145,8 +171,6 @@ pub struct DownloadRequest {
 
 /// Options shared by every invocation: ignore user config files, use our bundled tools.
 pub fn common_args(tools: &Tools) -> Vec<OsString> {
-    let mut deno = OsString::from("deno:");
-    deno.push(&tools.deno);
     let mut args: Vec<OsString> = vec![
         "--no-config".into(),
         "--no-color".into(),
@@ -157,7 +181,7 @@ pub fn common_args(tools: &Tools) -> Vec<OsString> {
         "--ffmpeg-location".into(),
         tools.ffmpeg.clone().into(),
         "--js-runtimes".into(),
-        deno,
+        tools.js_runtime.arg(),
     ];
     if let Some(proxy) = &tools.proxy {
         args.extend(["--proxy".into(), proxy.into()]);
@@ -256,8 +280,10 @@ fn push_url(args: &mut Vec<OsString>, url: &str) {
 pub(crate) fn test_tools() -> Tools {
     Tools {
         ytdlp: PathBuf::from("/bin/yt-dlp"),
+        ytdlp_prefix: Vec::new(),
+        env: Vec::new(),
         ffmpeg: PathBuf::from("/bin/ffmpeg"),
-        deno: PathBuf::from("/bin/deno"),
+        js_runtime: JsRuntime::Deno(PathBuf::from("/bin/deno")),
         proxy: None,
     }
 }
@@ -293,6 +319,14 @@ mod tests {
         // Paths and titles are read as UTF-8; on Windows yt-dlp otherwise prints in
         // the ANSI code page and Cyrillic file names come back as mojibake.
         assert!(has_pair(&args, "--encoding", "utf-8"));
+    }
+
+    #[test]
+    fn quickjs_runtime_on_android() {
+        let mut tools = test_tools();
+        tools.js_runtime = JsRuntime::QuickJs(PathBuf::from("/lib/libqjs.so"));
+        let args = strings(common_args(&tools));
+        assert!(has_pair(&args, "--js-runtimes", "quickjs:/lib/libqjs.so"));
     }
 
     #[test]

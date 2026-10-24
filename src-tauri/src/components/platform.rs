@@ -26,6 +26,16 @@ pub fn current() -> AppResult<Assets> {
     assets_for(std::env::consts::OS, std::env::consts::ARCH)
 }
 
+/// Android: only the platform-independent yt-dlp zipapp is downloaded.
+pub fn zipapp() -> Assets {
+    Assets {
+        ytdlp: "yt-dlp",
+        ffmpeg_suffix: "",
+        deno_triple: "",
+        exe_ext: "",
+    }
+}
+
 pub fn assets_for(os: &str, arch: &str) -> AppResult<Assets> {
     let assets = match (os, arch) {
         ("windows", "x86_64") => Assets {

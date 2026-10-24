@@ -18,11 +18,14 @@ export const en = {
     ytdlp: "yt-dlp",
     ffmpeg: "ffmpeg",
     deno: "Deno",
+    quickjs: "QuickJS",
   },
   setup: {
     title: "Getting ready",
     description:
       "Cliprigo needs yt-dlp, ffmpeg and Deno. They are downloaded once from their official releases.",
+    descriptionAndroid:
+      "Cliprigo needs yt-dlp. It is downloaded once from its official releases; ffmpeg and QuickJS come with the app.",
     waiting: "Waiting",
     downloading: "Downloading {name}…",
     verifying: "Verifying {name}…",
@@ -166,6 +169,7 @@ export const en = {
     upToDate: "Up to date",
     reinstall: "Reinstall",
     notInstalled: "Not installed",
+    bundled: "Built into the app",
     openLogs: "Open logs folder",
     saved: "Saved",
   },

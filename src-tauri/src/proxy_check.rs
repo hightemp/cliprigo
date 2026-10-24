@@ -43,7 +43,7 @@ pub struct ProxyCheck {
 /// Only an invalid proxy URL is an error: a failed check is a normal result.
 pub async fn check(proxy: &str, target: &str, timeout: Duration) -> AppResult<ProxyCheck> {
     let proxy = crate::net::validate_proxy(proxy)?;
-    let mut builder = reqwest::Client::builder()
+    let mut builder = crate::net::client_builder()
         .user_agent(concat!("Cliprigo/", env!("CARGO_PKG_VERSION")))
         .timeout(timeout)
         .redirect(reqwest::redirect::Policy::none());

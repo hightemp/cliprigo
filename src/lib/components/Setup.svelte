@@ -3,6 +3,7 @@
   import { api, onComponentProgress } from "$lib/api";
   import { errorMessage } from "$lib/errors";
   import { formatBytes } from "$lib/format";
+  import { componentLabel, isAndroid } from "$lib/platform";
   import { app, copyDetails, t } from "$lib/state.svelte";
   import type { ComponentName, ComponentProgress } from "$lib/types";
   import Icon from "./Icon.svelte";
@@ -42,7 +43,7 @@
   }
 
   function label(row: Row): string {
-    const name = t(`components.${row.name}`);
+    const name = t(`components.${componentLabel(row.name)}`);
     if (row.state === "done") return t("setup.installed");
     if (row.state === "error") return t("setup.failed", { name });
     if (row.state === "waiting") return t("setup.waiting");
@@ -84,14 +85,16 @@
 <div class="setup">
   <div class="card panel">
     <h1>{t("setup.title")}</h1>
-    <p class="muted">{t("setup.description")}</p>
+    <p class="muted">
+      {t(isAndroid ? "setup.descriptionAndroid" : "setup.description")}
+    </p>
 
     <ul>
       {#each rows as row (row.name)}
         {@const pct = percent(row)}
         <li>
           <div class="line">
-            <strong>{t(`components.${row.name}`)}</strong>
+            <strong>{t(`components.${componentLabel(row.name)}`)}</strong>
             <span class:error={row.state === "error"} class="muted status">
               {#if row.state === "done"}<Icon name="check" size={16} />{/if}
               {label(row)}

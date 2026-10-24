@@ -5,6 +5,7 @@
   import { errorMessage, parseStoredError } from "$lib/errors";
   import { formatBytes, formatDate, formatDuration } from "$lib/format";
   import { appendPage } from "$lib/history";
+  import { isAndroid } from "$lib/platform";
   import { formatFromRecord } from "$lib/selection";
   import { app, copyDetails, t, toast, toastError } from "$lib/state.svelte";
   import {
@@ -193,14 +194,16 @@
                   <Icon name="play" size={14} />
                   {t("history.open")}
                 </button>
-                <button
-                  class="icon-btn"
-                  title={t("history.showInFolder")}
-                  aria-label={t("history.showInFolder")}
-                  onclick={() => run(() => api.historyReveal(item.id), item)}
-                >
-                  <Icon name="folder" size={16} />
-                </button>
+                {#if !isAndroid}
+                  <button
+                    class="icon-btn"
+                    title={t("history.showInFolder")}
+                    aria-label={t("history.showInFolder")}
+                    onclick={() => run(() => api.historyReveal(item.id), item)}
+                  >
+                    <Icon name="folder" size={16} />
+                  </button>
+                {/if}
               {/if}
               {#if item.status === "failed"}
                 <button

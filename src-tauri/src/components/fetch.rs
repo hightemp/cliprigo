@@ -27,7 +27,7 @@ impl Http {
 
     pub fn with_read_timeout(proxy: Option<&str>, read_timeout: Duration) -> AppResult<Self> {
         let build = |policy| {
-            let mut builder = Client::builder()
+            let mut builder = crate::net::client_builder()
                 .user_agent(USER_AGENT)
                 .connect_timeout(Duration::from_secs(15))
                 .read_timeout(read_timeout)

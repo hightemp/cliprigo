@@ -39,6 +39,7 @@ md-5 = "0.11.0"
 url = "2.5.8"
 tokio-util = "0.7.20"
 tauri-plugin-clipboard-manager = "2.5.0"
+rustls-pki-types = { version = "1", features = ["std"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

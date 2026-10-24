@@ -8,7 +8,8 @@
 //
 //   node scripts/ui-preview.mjs [output-dir]
 //
-// Env: CHROME_PATH (default /usr/bin/google-chrome), PREVIEW_PORT (default 1430).
+// Env: CHROME_PATH (default /usr/bin/google-chrome), PREVIEW_PORT (default 1430),
+// PREVIEW_MOBILE=1 (an Android phone: narrow touch screen, Android user agent).
 
 import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
@@ -19,6 +20,16 @@ const OUT = resolve(process.argv[2] ?? "ui-preview");
 const PORT = Number(process.env.PREVIEW_PORT ?? 1430);
 const CHROME = process.env.CHROME_PATH ?? "/usr/bin/google-chrome";
 const BASE = `http://127.0.0.1:${PORT}/`;
+const MOBILE = process.env.PREVIEW_MOBILE === "1";
+const VIEWPORT = MOBILE
+  ? {
+      viewport: { width: 412, height: 915 },
+      isMobile: true,
+      hasTouch: true,
+      userAgent:
+        "Mozilla/5.0 (Linux; Android 15; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/140.0.0.0 Mobile Safari/537.36",
+    }
+  : { viewport: { width: 900, height: 640 } };
 
 // ---------- fake data ----------
 
@@ -856,7 +867,7 @@ try {
   await waitForServer(BASE);
   for (const scenario of scenarios) {
     const context = await browser.newContext({
-      viewport: { width: 900, height: 640 },
+      ...VIEWPORT,
       colorScheme: scenario.theme,
     });
     const page = await context.newPage();
@@ -869,6 +880,17 @@ try {
       await page.goto(BASE);
       await scenario.run(page, checks(page));
       if (errors.length) throw new Error(`page errors: ${errors.join("; ")}`);
+      if (MOBILE) {
+        // A phone screen must never scroll sideways; name what sticks out.
+        const wide = await page.evaluate(() => {
+          if (document.documentElement.scrollWidth <= innerWidth) return null;
+          const el = [...document.querySelectorAll("body *")]
+            .filter((e) => e.getBoundingClientRect().right > innerWidth + 1)
+            .pop();
+          return `${el?.tagName}.${el?.className} ${el?.textContent?.slice(0, 40)}`;
+        });
+        if (wide) throw new Error(`wider than the screen: ${wide}`);
+      }
       if (!scenario.noFinalShot) {
         await page.screenshot({ path: `${OUT}/${scenario.name}.png` });
       }

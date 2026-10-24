@@ -1,6 +1,7 @@
 <script lang="ts">
   import { open } from "@tauri-apps/plugin-dialog";
   import { qualityLabel } from "$lib/format";
+  import { isAndroid } from "$lib/platform";
   import { qualityOptions, type AudioFormat, type Mode } from "$lib/selection";
   import { CODECS, type Codec } from "$lib/types";
   import { app, t } from "$lib/state.svelte";
@@ -87,10 +88,14 @@
 
   <div class="folder">
     <span class="muted">{t("download.folder")}</span>
-    <button class="btn" onclick={chooseFolder} title={folder}>
-      <Icon name="folder" size={16} />
+    {#if isAndroid}
       <span class="ellipsis path"><bdi>{folder}</bdi></span>
-    </button>
+    {:else}
+      <button class="btn" onclick={chooseFolder} title={folder}>
+        <Icon name="folder" size={16} />
+        <span class="ellipsis path"><bdi>{folder}</bdi></span>
+      </button>
+    {/if}
   </div>
 
   {#if mode === "video"}
