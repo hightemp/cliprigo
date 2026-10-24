@@ -814,6 +814,49 @@ const scenarios = [
       await check.text(VIDEO.title);
     },
   },
+  {
+    name: "21-filename-template",
+    theme: "light",
+    responses: ready("ru", {
+      settings_get: { ...settings("ru"), filenameTemplate: "%(title)s.mp4" },
+      settings_set: {
+        ...settings("ru"),
+        filenameTemplate: "%(title)s.%(ext)s",
+      },
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Настройки" }).click();
+      await check.text("Шаблон не заканчивается на");
+      // Without .%(ext)s the name has no quality and no extension.
+      const result = page.locator(".preview bdi");
+      check.equal(await result.textContent(), "Название ролика.mp4");
+      await page.getByText("Как составить шаблон").click();
+      await check.text("название канала");
+      await page.screenshot({
+        path: `${OUT}/21-filename-template.png`,
+        fullPage: true,
+      });
+
+      await page.getByRole("button", { name: "Исправить" }).click();
+      const fixed = await check.call("settings_set");
+      check.equal(fixed.args.settings.filenameTemplate, "%(title)s.%(ext)s");
+      await page
+        .getByText("Шаблон не заканчивается")
+        .waitFor({ state: "detached" });
+      check.equal(await result.textContent(), "Название ролика 720p.mp4");
+
+      // An example replaces the template and is saved at once.
+      const example = "%(uploader)s/%(title)s [%(id)s].%(ext)s";
+      await page.getByRole("button", { name: example }).click();
+      await page.waitForFunction(
+        () =>
+          window.__calls.filter((x) => x.cmd === "settings_set").length === 2,
+      );
+      const picked = await check.call("settings_set");
+      check.equal(picked.args.settings.filenameTemplate, example);
+    },
+    noFinalShot: true,
+  },
 ];
 
 // ---------- runner ----------

@@ -164,7 +164,28 @@ export const en = {
     concurrency: "Simultaneous downloads",
     filenameTemplate: "File name template",
     filenameHint:
-      "yt-dlp output template, e.g. %(title)s [%(id)s].%(ext)s. Video quality is added before .%(ext)s: 720p, best h264.",
+      "Fields in %(…)s are replaced with data about the video, other text stays as is. Video quality is added before .%(ext)s: 720p, best h264.",
+    template: {
+      noExt:
+        "The template doesn't end with .%(ext)s: the file extension (mp4, webm, mp3) won't be set correctly, and different qualities of one video get the same name and overwrite each other.",
+      preview: "Result:",
+      sampleTitle: "Video title",
+      sampleUploader: "Channel name",
+      fix: "Fix",
+      help: "How to write a template",
+      fieldsTitle: "Fields",
+      fields: {
+        title: "video title",
+        id: "video ID on YouTube: keeps names unique",
+        uploader: "channel name",
+        date: "upload date, e.g. 2026-10-24",
+        ext: "file extension (mp4, webm, mp3); keep it at the end",
+      },
+      examplesTitle: "Examples (click to use)",
+      notes:
+        "A / creates a subfolder inside the download folder: %(uploader)s/… keeps each channel in its own folder.",
+      docs: "All fields in the yt-dlp documentation",
+    },
     language: "Language",
     languageSystem: "System",
     autoUpdate: "Check for yt-dlp updates on start",

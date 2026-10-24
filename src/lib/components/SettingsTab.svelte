@@ -4,7 +4,17 @@
   import { api, onComponentProgress } from "$lib/api";
   import { formatBytes, qualityLabel } from "$lib/format";
   import { componentLabel, isAndroid, isBundled } from "$lib/platform";
+  import { openUrl } from "@tauri-apps/plugin-opener";
   import { mergeSaved } from "$lib/settings";
+  import {
+    TEMPLATE_DOCS,
+    TEMPLATE_EXAMPLES,
+    TEMPLATE_FIELDS,
+    fixTemplate,
+    missingExt,
+    previewName,
+    splitFields,
+  } from "$lib/template";
   import {
     app,
     applySettings,
@@ -51,6 +61,21 @@
       if (app.settings)
         draft = mergeSaved(sent, app.settings, $state.snapshot(draft));
     }
+  }
+
+  // Help shows names for a 720p video, the most common pick.
+  const sample = $derived({
+    title: t("settings.template.sampleTitle"),
+    id: "dQw4w9WgXcQ",
+    uploader: t("settings.template.sampleUploader"),
+    upload_date: "20261024",
+    ext: "mp4",
+  });
+  const preview = (template: string) => previewName(template, sample, " 720p");
+
+  function setTemplate(template: string) {
+    draft.filenameTemplate = template;
+    save();
   }
 
   let proxyChecking = $state(false);
@@ -137,6 +162,12 @@
   });
 </script>
 
+{#snippet withFields(text: string)}
+  {#each splitFields(text) as part, i (i)}
+    {#if part.code}<code class="field">{part.text}</code>{:else}{part.text}{/if}
+  {/each}
+{/snippet}
+
 <div class="tab">
   <section class="card">
     <div class="row">
@@ -204,16 +235,69 @@
       </select>
     </label>
 
-    <label class="row column">
-      <span>{t("settings.filenameTemplate")}</span>
+    <div class="row column">
+      <label for="filename-template">{t("settings.filenameTemplate")}</label>
       <input
+        id="filename-template"
         class="input"
         bind:value={draft.filenameTemplate}
         onchange={save}
         spellcheck="false"
+        autocapitalize="off"
+        autocomplete="off"
       />
-      <span class="muted small">{t("settings.filenameHint")}</span>
-    </label>
+      <span class="muted small preview">
+        {t("settings.template.preview")}
+        <bdi>{preview(draft.filenameTemplate)}</bdi>
+      </span>
+      {#if missingExt(draft.filenameTemplate)}
+        <div class="template-warning small" role="alert">
+          <Icon name="warning" size={14} />
+          <span>{@render withFields(t("settings.template.noExt"))}</span>
+          <button
+            class="btn small-btn"
+            onclick={() => setTemplate(fixTemplate(draft.filenameTemplate))}
+          >
+            {t("settings.template.fix")}
+          </button>
+        </div>
+      {/if}
+      <span class="muted small"
+        >{@render withFields(t("settings.filenameHint"))}</span
+      >
+      <details class="template-help small">
+        <summary>{t("settings.template.help")}</summary>
+        <h4>{t("settings.template.fieldsTitle")}</h4>
+        <dl>
+          {#each TEMPLATE_FIELDS as [code, key] (key)}
+            <dt><code>{code}</code></dt>
+            <dd>{t(`settings.template.fields.${key}`)}</dd>
+          {/each}
+        </dl>
+        <h4>{t("settings.template.examplesTitle")}</h4>
+        <ul class="examples">
+          {#each TEMPLATE_EXAMPLES as example (example)}
+            <li>
+              <button
+                class="example"
+                class:current={example === draft.filenameTemplate}
+                onclick={() => setTemplate(example)}
+                ><code>{example}</code>
+                <span class="muted">→ {preview(example)}</span></button
+              >
+            </li>
+          {/each}
+        </ul>
+        <p>{@render withFields(t("settings.template.notes"))}</p>
+        <button
+          class="link"
+          onclick={() => openUrl(TEMPLATE_DOCS).catch(toastError)}
+        >
+          <Icon name="external" size={14} />
+          {t("settings.template.docs")}
+        </button>
+      </details>
+    </div>
 
     <div class="row column">
       <label for="proxy">{t("settings.proxy")}</label>
@@ -445,6 +529,114 @@
 
   .small {
     font-size: 12px;
+  }
+
+  .template-warning {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    color: var(--warning);
+    background: var(--warning-soft);
+  }
+
+  .template-warning span {
+    flex: 1;
+    min-width: 12em;
+  }
+
+  .template-help summary {
+    cursor: pointer;
+    color: var(--accent);
+    width: fit-content;
+  }
+
+  .template-help h4 {
+    margin: 10px 0 4px;
+    font-size: 12px;
+  }
+
+  .template-help dl {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 4px 12px;
+    margin: 0;
+  }
+
+  .template-help dd {
+    margin: 0;
+    color: var(--muted);
+  }
+
+  .template-help code {
+    overflow-wrap: anywhere;
+  }
+
+  /* Fields in a sentence stay whole instead of breaking at "." or "(". */
+  .field {
+    white-space: nowrap;
+  }
+
+  .examples {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 2px;
+  }
+
+  .example {
+    max-width: 100%;
+    padding: 4px 8px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: none;
+    color: var(--text);
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .example {
+    display: grid;
+    gap: 2px;
+  }
+
+  .preview bdi {
+    color: var(--text);
+    overflow-wrap: anywhere;
+  }
+
+  .example:hover {
+    background: var(--surface-2);
+  }
+
+  .example.current {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .template-help p {
+    margin: 10px 0 6px;
+    color: var(--muted);
+  }
+
+  .link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .link:hover {
+    text-decoration: underline;
   }
 
   .saved {
