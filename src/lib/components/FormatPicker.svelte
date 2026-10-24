@@ -2,6 +2,7 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { qualityLabel } from "$lib/format";
   import { isAndroid } from "$lib/platform";
+  import { radioKey } from "$lib/radio";
   import { qualityOptions, type AudioFormat, type Mode } from "$lib/selection";
   import { CODECS, type Codec } from "$lib/types";
   import { app, t, toastError } from "$lib/state.svelte";
@@ -26,6 +27,17 @@
   const options = $derived(qualityOptions(heights));
   const folder = $derived(outputDir ?? app.settings?.downloadDir ?? "");
 
+  const MODES: Mode[] = ["video", "audio"];
+
+  function modeKey(e: KeyboardEvent) {
+    const next = radioKey(MODES, mode, e.key);
+    if (!next) return;
+    e.preventDefault();
+    mode = next;
+    const group = e.currentTarget as HTMLElement;
+    group.querySelector<HTMLElement>(`[data-mode="${next}"]`)?.focus();
+  }
+
   async function chooseFolder() {
     try {
       const picked = await open({
@@ -40,25 +52,26 @@
 </script>
 
 <div class="picker">
-  <div class="segmented" role="radiogroup">
-    <button
-      role="radio"
-      aria-checked={mode === "video"}
-      class:on={mode === "video"}
-      onclick={() => (mode = "video")}
-    >
-      <Icon name="video" size={16} />
-      {t("download.video")}
-    </button>
-    <button
-      role="radio"
-      aria-checked={mode === "audio"}
-      class:on={mode === "audio"}
-      onclick={() => (mode = "audio")}
-    >
-      <Icon name="music" size={16} />
-      {t("download.audio")}
-    </button>
+  <div
+    class="segmented"
+    role="radiogroup"
+    aria-label={t("download.mode")}
+    tabindex="-1"
+    onkeydown={modeKey}
+  >
+    {#each MODES as m (m)}
+      <button
+        role="radio"
+        data-mode={m}
+        aria-checked={mode === m}
+        tabindex={mode === m ? 0 : -1}
+        class:on={mode === m}
+        onclick={() => (mode = m)}
+      >
+        <Icon name={m === "video" ? "video" : "music"} size={16} />
+        {t(`download.${m}`)}
+      </button>
+    {/each}
   </div>
 
   {#if mode === "video"}

@@ -381,7 +381,20 @@ const scenarios = [
       await page.getByRole("button", { name: "Отмена" }).click();
 
       // Audio is another file: no warning, downloads at once.
-      await page.getByRole("radio", { name: "Только звук" }).click();
+      // Picked from the keyboard: arrows select and move focus, wrapping around.
+      const video = page.getByRole("radio", { name: "Видео" });
+      const audio = page.getByRole("radio", { name: "Только звук" });
+      check.equal(await audio.getAttribute("tabindex"), "-1");
+      await video.focus();
+      await page.keyboard.press("ArrowLeft");
+      check.equal(await audio.getAttribute("aria-checked"), "true");
+      check.equal(
+        await audio.evaluate((el) => el === document.activeElement),
+        true,
+      );
+      await page.keyboard.press("ArrowRight");
+      check.equal(await video.getAttribute("aria-checked"), "true");
+      await page.keyboard.press("End");
       await page.getByText("Уже скачано").waitFor({ state: "detached" });
       await page.getByRole("button", { name: "Скачать" }).last().click();
       await check.call("queue_add");

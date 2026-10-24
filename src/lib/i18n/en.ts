@@ -46,6 +46,7 @@ export const en = {
       "This doesn't look like a YouTube link. It may still work, but isn't guaranteed.",
     video: "Video",
     audio: "Audio only",
+    mode: "Download as",
     quality: "Quality",
     codec: "Codec",
     best: "Best available",
