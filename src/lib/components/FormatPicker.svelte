@@ -89,7 +89,7 @@
   <div class="folder">
     <span class="muted">{t("download.folder")}</span>
     {#if isAndroid}
-      <span class="ellipsis path"><bdi>{folder}</bdi></span>
+      <span class="ellipsis path" title={folder}><bdi>{folder}</bdi></span>
     {:else}
       <button class="btn" onclick={chooseFolder} title={folder}>
         <Icon name="folder" size={16} />

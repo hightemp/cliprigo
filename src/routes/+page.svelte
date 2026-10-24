@@ -16,6 +16,7 @@
   import Icon, { type IconName } from "$lib/components/Icon.svelte";
   import SettingsTab from "$lib/components/SettingsTab.svelte";
   import Setup from "$lib/components/Setup.svelte";
+  import { isAndroid } from "$lib/platform";
 
   type Tab = "download" | "history" | "settings";
   const TABS: { id: Tab; icon: IconName }[] = [
@@ -29,6 +30,15 @@
   let tab = $state<Tab>("download");
   let confirmClose = $state(false);
   let quitting = $state(false);
+
+  // Android freezes a backgrounded app with its downloads unless a notification
+  // says it is working. $derived: progress events must not restart it.
+  const active = $derived(app.queue.length);
+  $effect(() => {
+    if (!isAndroid) return;
+    const text = active > 0 ? t("app.keepAlive", { count: active }) : null;
+    api.keepAlive(text).catch(() => {});
+  });
 
   async function start() {
     phase = "loading";

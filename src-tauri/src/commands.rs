@@ -220,7 +220,9 @@ fn history_file(db: &Db, id: i64) -> AppResult<std::path::PathBuf> {
 pub fn history_open(app: AppHandle, db: State<'_, Db>, id: i64) -> AppResult<()> {
     let path = history_file(&db, id)?;
     #[cfg(target_os = "android")]
-    return app.state::<crate::android::Files<tauri::Wry>>().open(&path);
+    return app
+        .state::<crate::android::Platform<tauri::Wry>>()
+        .open(&path);
     #[cfg(not(target_os = "android"))]
     app.opener()
         .open_path(path.to_string_lossy(), None::<&str>)
@@ -233,6 +235,21 @@ pub fn history_reveal(app: AppHandle, db: State<'_, Db>, id: i64) -> AppResult<(
     app.opener()
         .reveal_item_in_dir(path)
         .map_err(|e| AppError::Other(e.to_string()))
+}
+
+/// Android: keeps downloads running in the background behind a notification with
+/// `text`; `None` when the queue is empty. Nothing to do on desktop.
+#[tauri::command]
+pub fn keep_alive(app: AppHandle, text: Option<String>) -> AppResult<()> {
+    #[cfg(target_os = "android")]
+    return app
+        .state::<crate::android::Platform<tauri::Wry>>()
+        .keep_alive(text);
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, text);
+        Ok(())
+    }
 }
 
 #[tauri::command]

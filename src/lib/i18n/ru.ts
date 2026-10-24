@@ -3,6 +3,12 @@ import type { Messages } from "./index";
 export const ru: Messages = {
   app: {
     ytdlpUpdated: "yt-dlp обновлён до {version}",
+    keepAlive: {
+      one: "Скачивается {count} видео",
+      few: "Скачиваются {count} видео",
+      many: "Скачиваются {count} видео",
+      other: "Скачиваются {count} видео",
+    },
   },
   tabs: {
     download: "Загрузка",

@@ -244,7 +244,7 @@ const scenarios = [
       await quality.selectOption({ label: "1080p" });
       // A long folder is cut at the start (the folder name stays visible) and must
       // not overflow the card.
-      const folder = page.locator("button[title^='/home/user/Videos']");
+      const folder = page.locator("[title^='/home/user/Videos']");
       await folder.waitFor({ timeout: 5000 });
       const fits = await folder.evaluate((el) => {
         const card = el.closest(".card").getBoundingClientRect();
@@ -306,6 +306,23 @@ const scenarios = [
         record: { ...c, status: "canceled" },
       });
       await check.text("2 загрузки");
+
+      if (MOBILE) {
+        // Android keeps the app alive with a notification while anything runs,
+        // updated when the count changes, not on every progress event.
+        const texts = await page.evaluate(() =>
+          window.__calls
+            .filter((x) => x.cmd === "keep_alive")
+            .map((x) => x.args.text),
+        );
+        check.equal(texts, [
+          null,
+          "Скачивается 1 видео",
+          "Скачиваются 2 видео",
+          "Скачиваются 3 видео",
+          "Скачиваются 2 видео",
+        ]);
+      }
     },
   },
   {

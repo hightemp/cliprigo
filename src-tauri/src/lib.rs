@@ -162,6 +162,7 @@ pub fn run() {
             commands::history_open,
             commands::history_reveal,
             commands::open_logs,
+            commands::keep_alive,
             commands::settings_get,
             commands::settings_set,
             commands::proxy_check,

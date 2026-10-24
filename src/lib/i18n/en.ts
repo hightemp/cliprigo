@@ -1,6 +1,10 @@
 export const en = {
   app: {
     ytdlpUpdated: "yt-dlp updated to {version}",
+    keepAlive: {
+      one: "Downloading {count} video",
+      other: "Downloading {count} videos",
+    },
   },
   tabs: {
     download: "Download",
