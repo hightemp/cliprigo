@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  duplicatesFor,
+  sameFiles,
   buildFormat,
   codecOrAuto,
   formatFromRecord,
@@ -7,7 +9,7 @@ import {
   qualityOptions,
   toggleAll,
 } from "./selection";
-import type { PlaylistEntry } from "./types";
+import type { DownloadRecord, PlaylistEntry } from "./types";
 
 function entry(id: string, available = true): PlaylistEntry {
   return {
@@ -106,5 +108,66 @@ describe("codecOrAuto", () => {
     expect(codecOrAuto("h264")).toBe("h264");
     expect(codecOrAuto("hevc")).toBe("auto");
     expect(codecOrAuto(undefined)).toBe("auto");
+  });
+});
+
+describe("sameFiles", () => {
+  const rec = (over: Partial<DownloadRecord>): DownloadRecord => ({
+    id: 1,
+    videoId: "v",
+    url: "https://youtu.be/v",
+    title: "V",
+    uploader: null,
+    duration: null,
+    thumbnailUrl: null,
+    format: "video",
+    quality: 720,
+    codec: "auto",
+    filePath: "/dl/V [v] 720p.mp4",
+    fileSize: null,
+    status: "completed",
+    error: null,
+    playlistId: null,
+    playlistTitle: null,
+    createdAt: 0,
+    completedAt: 0,
+    outputDir: "/dl",
+    ...over,
+  });
+  const v720 = { kind: "video", maxHeight: 720, codec: "auto" } as const;
+
+  it("matches only the download that writes the same file", () => {
+    expect(sameFiles(rec({}), v720, "/dl")).toBe(true);
+    expect(sameFiles(rec({}), { ...v720, maxHeight: 1080 }, "/dl")).toBe(false);
+    expect(sameFiles(rec({}), { ...v720, codec: "h264" }, "/dl")).toBe(false);
+    expect(sameFiles(rec({}), { kind: "audio_mp3" }, "/dl")).toBe(false);
+    expect(sameFiles(rec({}), v720, "/other")).toBe(false);
+    expect(
+      sameFiles(
+        rec({ format: "audio_mp3", quality: null, codec: null }),
+        {
+          kind: "audio_mp3",
+        },
+        "/dl",
+      ),
+    ).toBe(true);
+  });
+
+  it("treats records from before codecs and folders as matching", () => {
+    expect(sameFiles(rec({ codec: null, outputDir: null }), v720, "/dl")).toBe(
+      true,
+    );
+  });
+
+  it("indexes the newest matching record per video", () => {
+    const records = [
+      rec({ id: 3, quality: 1080 }),
+      rec({ id: 2 }),
+      rec({ id: 1 }),
+      rec({ id: 4, videoId: "w" }),
+    ];
+    const found = duplicatesFor(records, v720, "/dl");
+    expect(Object.keys(found).sort()).toEqual(["v", "w"]);
+    expect(found.v.id).toBe(2);
   });
 });

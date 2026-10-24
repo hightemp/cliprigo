@@ -75,12 +75,45 @@ struct Running {
     snapshot: Option<Snapshot>,
 }
 
+/// The files a job writes. Two jobs with the same target would share them: the
+/// result gets corrupted, and canceling one deletes the other's partial files.
+#[derive(Debug, Clone, PartialEq)]
+struct Target {
+    /// The video id, or the link when it is unknown.
+    video: String,
+    format: Format,
+    dir: PathBuf,
+}
+
+impl Target {
+    fn new(video_id: Option<&str>, request: &DownloadRequest) -> Self {
+        Self {
+            video: video_id.unwrap_or(&request.url).to_string(),
+            format: request.format,
+            dir: request.output_dir.clone(),
+        }
+    }
+}
+
 #[derive(Default)]
 struct State {
     pending: VecDeque<(i64, DownloadRequest)>,
     running: HashMap<i64, Running>,
     /// Active ids in the order they were queued.
     order: Vec<i64>,
+    targets: HashMap<i64, Target>,
+}
+
+impl State {
+    fn is_taken(&self, target: &Target) -> bool {
+        self.targets.values().any(|t| t == target)
+    }
+
+    /// Removes `id` from the active jobs (but not from `running`).
+    fn deactivate(&mut self, id: i64) {
+        self.order.retain(|o| *o != id);
+        self.targets.remove(&id);
+    }
 }
 
 struct Inner {
@@ -121,14 +154,27 @@ impl Queue {
         result
     }
 
+    /// Skips items whose file is already being downloaded; fails if that leaves none.
     fn add_items(&self, items: Vec<QueueItemInput>) -> AppResult<Vec<DownloadRecord>> {
         let settings = self.inner.db.load_settings()?;
         let mut records = Vec::with_capacity(items.len());
+        let mut skipped = false;
         for item in items {
             let output_dir = item
                 .output_dir
                 .filter(|d| !d.trim().is_empty())
                 .unwrap_or_else(|| settings.download_dir.clone());
+            let request = DownloadRequest {
+                url: item.url.clone(),
+                format: item.format,
+                output_dir: PathBuf::from(&output_dir),
+                filename_template: settings.filename_template.clone(),
+            };
+            let target = Target::new(item.video_id.as_deref(), &request);
+            if self.inner.state().is_taken(&target) {
+                skipped = true;
+                continue;
+            }
             let record = self.inner.db.insert_download(&NewDownload {
                 video_id: item.video_id,
                 url: item.url.clone(),
@@ -141,21 +187,23 @@ impl Queue {
                 codec: item.format.codec().map(String::from),
                 playlist_id: item.playlist_id,
                 playlist_title: item.playlist_title,
-                output_dir: Some(output_dir.clone()),
+                output_dir: Some(output_dir),
             })?;
-            let request = DownloadRequest {
-                url: item.url,
-                format: item.format,
-                output_dir: PathBuf::from(output_dir),
-                filename_template: settings.filename_template.clone(),
-            };
-            self.inner.enqueue(record.id, request);
+            self.inner.enqueue(record.id, request, target);
             (self.inner.sink)(QueueEvent::Status {
                 record: Box::new(record.clone()),
             });
             records.push(record);
         }
+        if records.is_empty() && skipped {
+            return Err(AppError::AlreadyQueued);
+        }
         Ok(records)
+    }
+
+    /// Starts waiting downloads if the concurrency setting was raised.
+    pub fn settings_changed(&self) {
+        self.inner.pump();
     }
 
     /// Cancels a queued or running download. Unknown or finished ids are ignored.
@@ -167,7 +215,7 @@ impl Queue {
                 false
             } else if let Some(pos) = state.pending.iter().position(|(p, _)| *p == id) {
                 state.pending.remove(pos);
-                state.order.retain(|o| *o != id);
+                state.deactivate(id);
                 true
             } else {
                 false
@@ -196,24 +244,31 @@ impl Queue {
         let format = Format::from_db(&record.format, record.quality, record.codec.as_deref())
             .ok_or_else(|| AppError::Other(format!("unknown format {}", record.format)))?;
         let settings = self.inner.db.load_settings()?;
-        // Check and claim under one lock: a double click sends two retries at once.
-        if !retryable || !self.inner.reserve(id) {
-            return Err(AppError::Other(format!(
+        let busy = || {
+            AppError::Other(format!(
                 "download {id} can't be retried while {:?}",
                 record.status
-            )));
+            ))
+        };
+        if !retryable {
+            return Err(busy());
         }
         let request = DownloadRequest {
             url: record.url.clone(),
             format,
-            output_dir: PathBuf::from(record.output_dir.unwrap_or(settings.download_dir)),
+            output_dir: PathBuf::from(record.output_dir.clone().unwrap_or(settings.download_dir)),
             filename_template: settings.filename_template,
         };
+        let target = Target::new(record.video_id.as_deref(), &request);
+        // Check and claim under one lock: a double click sends two retries at once.
+        self.inner
+            .reserve(id, &target)
+            .map_err(|e| e.unwrap_or_else(busy))?;
         if let Err(e) = self.inner.db.set_status(id, DownloadStatus::Queued, None) {
-            self.inner.state().order.retain(|o| *o != id);
+            self.inner.state().deactivate(id);
             return Err(e);
         }
-        self.inner.enqueue(id, request);
+        self.inner.enqueue(id, request, target);
         self.inner.emit_record(id);
         self.inner.pump();
         self.inner
@@ -260,7 +315,9 @@ impl Queue {
                 running.cancel.cancel();
             }
             let pending: Vec<i64> = state.pending.drain(..).map(|(id, _)| id).collect();
-            state.order.retain(|id| !pending.contains(id));
+            for id in &pending {
+                state.deactivate(*id);
+            }
             pending
         };
         for id in pending {
@@ -286,22 +343,28 @@ impl Inner {
         self.state.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Marks `id` active unless it already is.
-    fn reserve(&self, id: i64) -> bool {
+    /// Marks `id` active unless it already is (`Err(None)`) or another job writes the
+    /// same files (`Err(Some(AlreadyQueued))`).
+    fn reserve(&self, id: i64, target: &Target) -> Result<(), Option<AppError>> {
         let mut state = self.state();
         if state.order.contains(&id) {
-            return false;
+            return Err(None);
+        }
+        if state.is_taken(target) {
+            return Err(Some(AppError::AlreadyQueued));
         }
         state.order.push(id);
-        true
+        state.targets.insert(id, target.clone());
+        Ok(())
     }
 
-    fn enqueue(&self, id: i64, request: DownloadRequest) {
+    fn enqueue(&self, id: i64, request: DownloadRequest, target: Target) {
         let mut state = self.state();
         state.pending.push_back((id, request));
         if !state.order.contains(&id) {
             state.order.push(id);
         }
+        state.targets.insert(id, target);
     }
 
     fn emit_record(&self, id: i64) {
@@ -356,31 +419,32 @@ impl Inner {
         self.update_status(id, DownloadStatus::Downloading, None);
         let result = (self.run)(request, cancel.clone(), self.progress_sink(id)).await;
 
-        match result {
+        let (status, error) = match result {
             Ok(Outcome::Completed { path, size }) => {
                 let path = path.to_string_lossy();
                 let size = size.and_then(|s| i64::try_from(s).ok());
                 if let Err(e) = self.db.set_result(id, &path, size) {
                     tracing::error!(id, error = %e, "failed to store download result");
                 }
-                self.update_status(id, DownloadStatus::Completed, None);
+                (DownloadStatus::Completed, None)
             }
-            Ok(Outcome::Canceled) => self.update_status(id, DownloadStatus::Canceled, None),
+            Ok(Outcome::Canceled) => (DownloadStatus::Canceled, None),
             // A process killed by cancel may still report an error; the user canceled it.
-            Err(_) if cancel.is_cancelled() => {
-                self.update_status(id, DownloadStatus::Canceled, None)
-            }
+            Err(_) if cancel.is_cancelled() => (DownloadStatus::Canceled, None),
             Err(e) => {
                 tracing::warn!(id, error = %e, "download failed");
                 let error = serde_json::to_string(&e).unwrap_or_else(|_| e.to_string());
-                self.update_status(id, DownloadStatus::Failed, Some(&error));
+                (DownloadStatus::Failed, Some(error))
             }
-        }
+        };
 
         {
+            // Under the lock: a retry sent the moment the UI shows the final status
+            // must find the job already gone.
             let mut state = self.state();
+            self.update_status(id, status, error.as_deref());
             state.running.remove(&id);
-            state.order.retain(|o| *o != id);
+            state.deactivate(id);
         }
         self.stopped.notify_waiters();
         self.pump();
@@ -856,6 +920,104 @@ mod tests {
             assert_eq!(ok, 1, "record {}", r.id);
             let queued = h.queue.list().unwrap();
             assert_eq!(queued.iter().filter(|e| e.record.id == r.id).count(), 1);
+            h.queue.cancel_all().await;
+        }
+    }
+
+    /// More parallel downloads start at once, not when a running one finishes.
+    #[tokio::test(start_paused = true)]
+    async fn raised_concurrency_applies_at_once() {
+        let h = harness(1);
+        let ids: Vec<i64> = h
+            .queue
+            .add(
+                (0..3)
+                    .map(|i| item(&format!("fake://block/c{i}")))
+                    .collect(),
+            )
+            .unwrap()
+            .iter()
+            .map(|r| r.id)
+            .collect();
+        h.until("one running", |h| {
+            h.status(ids[0]) == DownloadStatus::Downloading
+        })
+        .await;
+        let mut settings = h.db.load_settings().unwrap();
+        settings.concurrency = 3;
+        h.db.save_settings(settings).unwrap();
+        h.queue.settings_changed();
+        h.until("all running", |h| {
+            ids.iter()
+                .all(|id| h.status(*id) == DownloadStatus::Downloading)
+        })
+        .await;
+        h.queue.cancel_all().await;
+    }
+
+    /// Two jobs writing the same file corrupt it, and canceling one deletes the
+    /// other's partial files. The output depends on video, format and folder.
+    #[tokio::test(start_paused = true)]
+    async fn same_file_is_not_queued_twice() {
+        let h = harness(2);
+        let first = h.queue.add(vec![item("fake://block/a")]).unwrap()[0].id;
+        assert!(matches!(
+            h.queue.add(vec![item("fake://block/a")]),
+            Err(AppError::AlreadyQueued)
+        ));
+        // A playlist with one such entry still adds the rest.
+        let added = h
+            .queue
+            .add(vec![item("fake://block/a"), item("fake://ok/b")])
+            .unwrap();
+        assert_eq!(added.len(), 1);
+        // Another quality is another file.
+        let mut other = item("fake://ok/a");
+        other.format = Format::AudioMp3;
+        h.queue.add(vec![other]).unwrap();
+
+        h.queue.cancel(first).unwrap();
+        h.until("first stopped", |h| !h.queue.is_active(first))
+            .await;
+        h.queue.add(vec![item("fake://ok/a")]).unwrap();
+        h.until_idle().await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn retry_is_refused_while_a_copy_runs() {
+        let h = harness(2);
+        let failed = h.queue.add(vec![item("fake://fail/a")]).unwrap()[0].id;
+        h.until_idle().await;
+        let running = h.queue.add(vec![item("fake://block/a")]).unwrap()[0].id;
+        assert!(matches!(
+            h.queue.retry(failed),
+            Err(AppError::AlreadyQueued)
+        ));
+        h.queue.cancel(running).unwrap();
+        h.until_idle().await;
+    }
+
+    /// The UI shows Retry as soon as it gets the Canceled status; clicking it at once
+    /// must work.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn retry_right_after_cancel() {
+        let h = harness(2);
+        for i in 0..100 {
+            let id = h
+                .queue
+                .add(vec![item(&format!("fake://block/r{i}"))])
+                .unwrap()[0]
+                .id;
+            h.until("running", |h| h.status(id) == DownloadStatus::Downloading)
+                .await;
+            h.queue.cancel(id).unwrap();
+            // Retry the moment the Canceled status is stored.
+            while h.status(id) != DownloadStatus::Canceled {
+                std::thread::yield_now();
+            }
+            h.queue
+                .retry(id)
+                .unwrap_or_else(|e| panic!("retry {i}: {e:?}"));
             h.queue.cancel_all().await;
         }
     }

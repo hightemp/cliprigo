@@ -71,8 +71,8 @@ export const en = {
   },
   duplicate: {
     title: "Already downloaded",
-    completed: "“{title}” is already in your history.",
-    active: "“{title}” is already in the queue.",
+    completed: "“{title}” is already downloaded in this format.",
+    active: "“{title}” is already downloading in this format.",
     again: "Download again",
     open: "Open file",
   },
@@ -206,6 +206,7 @@ export const en = {
     unsupported_platform:
       "This operating system or processor is not supported.",
     components_missing: "Required components are not installed yet.",
+    already_queued: "This video in this format is already downloading.",
     ytdlp_unavailable: "The video is unavailable: removed, private or blocked.",
     ytdlp_bot_check:
       "YouTube asked to confirm you're not a bot. This happens on some networks (VPN, hosting); try again later or from another network.",

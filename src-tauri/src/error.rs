@@ -23,6 +23,8 @@ pub enum AppError {
     FileMissing(String),
     #[error("component not installed: {0}")]
     ComponentsMissing(String),
+    #[error("the same file is already being downloaded")]
+    AlreadyQueued,
     #[error("{message}")]
     Ytdlp {
         kind: crate::ytdlp::errors::ErrorKind,
@@ -45,6 +47,7 @@ impl AppError {
             Self::UnsupportedPlatform(_) => "unsupported_platform",
             Self::ComponentsMissing(_) => "components_missing",
             Self::FileMissing(_) => "file_missing",
+            Self::AlreadyQueued => "already_queued",
             Self::InvalidProxy(_) => "invalid_proxy",
             Self::Ytdlp { kind, .. } => kind.code(),
             Self::Other(_) => "other",

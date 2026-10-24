@@ -1,4 +1,10 @@
-import { CODECS, type Codec, type Format, type PlaylistEntry } from "./types";
+import {
+  CODECS,
+  type Codec,
+  type DownloadRecord,
+  type Format,
+  type PlaylistEntry,
+} from "./types";
 
 export type Mode = "video" | "audio";
 export type AudioFormat = "mp3" | "m4a";
@@ -62,4 +68,42 @@ export function formatFromRecord(
     default:
       return null;
   }
+}
+
+/** `Format::db_name` of the backend. */
+function dbName(format: Format): string {
+  return format.kind;
+}
+
+/**
+ * True when downloading `format` into `outputDir` writes the file of `record`
+ * (the name carries the quality). Old records without codec or folder match.
+ */
+export function sameFiles(
+  record: DownloadRecord,
+  format: Format,
+  outputDir: string,
+): boolean {
+  if (record.format !== dbName(format)) return false;
+  if (record.outputDir !== null && record.outputDir !== outputDir) return false;
+  if (format.kind !== "video") return true;
+  return (
+    record.quality === format.maxHeight &&
+    codecOrAuto(record.codec) === format.codec
+  );
+}
+
+/** Newest record per video that the chosen format would download again. */
+export function duplicatesFor(
+  records: readonly DownloadRecord[],
+  format: Format,
+  outputDir: string,
+): Record<string, DownloadRecord> {
+  const found: Record<string, DownloadRecord> = {};
+  for (const r of [...records].sort((a, b) => b.id - a.id)) {
+    if (r.videoId && !(r.videoId in found) && sameFiles(r, format, outputDir)) {
+      found[r.videoId] = r;
+    }
+  }
+  return found;
 }

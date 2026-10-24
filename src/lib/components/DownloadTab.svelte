@@ -6,6 +6,7 @@
   import {
     buildFormat,
     codecOrAuto,
+    duplicatesFor,
     initialSelection,
     toggleAll,
     type AudioFormat,
@@ -38,8 +39,8 @@
   let probeErrorRaw: unknown = null;
   let probedUrl = "";
   let result = $state<ProbeResult | null>(null);
-  /** Existing downloads by video id. */
-  let duplicates = $state<Record<string, DownloadRecord>>({});
+  /** Completed and active downloads of the probed videos, in any format. */
+  let existing = $state<DownloadRecord[]>([]);
   let selected = $state(new Set<string>());
 
   let mode = $state<Mode>("video");
@@ -53,6 +54,14 @@
   /** Ignores results of an older probe when a newer link was pasted meanwhile. */
   let probeToken = 0;
 
+  /** Downloads the current choice would repeat, by video id: same file name. */
+  const duplicates = $derived(
+    duplicatesFor(
+      existing,
+      buildFormat(mode, quality, codec, audio),
+      outputDir ?? app.settings?.downloadDir ?? "",
+    ),
+  );
   const heights = $derived(
     result?.type === "video" ? result.heights : PLAYLIST_HEIGHTS,
   );
@@ -87,9 +96,7 @@
         probed.type === "video" ? [probed.id] : probed.entries.map((e) => e.id);
       const found = await api.findDuplicates(ids);
       if (token !== probeToken) return;
-      duplicates = Object.fromEntries(
-        found.filter((d) => d.videoId).map((d) => [d.videoId as string, d]),
-      );
+      existing = found;
       applyDefaults(
         probed.type === "video" ? probed.heights : PLAYLIST_HEIGHTS,
       );
@@ -173,9 +180,9 @@
   function download(force = false) {
     if (!result) return;
     if (result.type === "video") {
-      const existing = duplicates[result.id];
-      if (existing && !force) {
-        duplicateOf = existing;
+      const duplicate = duplicates[result.id];
+      if (duplicate && !force) {
+        duplicateOf = duplicate;
         return;
       }
       enqueue([toItem(result, null)]);
@@ -382,13 +389,16 @@
           >{t("duplicate.open")}</button
         >
       {/if}
-      <button
-        class="btn primary"
-        onclick={() => {
-          duplicateOf = null;
-          download(true);
-        }}>{t("duplicate.again")}</button
-      >
+      <!-- A second job for an active one would write the same files. -->
+      {#if dup.status === "completed"}
+        <button
+          class="btn primary"
+          onclick={() => {
+            duplicateOf = null;
+            download(true);
+          }}>{t("duplicate.again")}</button
+        >
+      {/if}
     {/snippet}
   </Dialog>
 {/if}

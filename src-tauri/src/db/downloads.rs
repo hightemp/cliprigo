@@ -230,8 +230,8 @@ impl Db {
         Ok(record)
     }
 
-    /// Newest completed or active record for each of `video_ids`, to warn before
-    /// downloading the same video twice.
+    /// Completed and active records of `video_ids`, newest first, to warn before
+    /// downloading a video again. The caller matches format and folder.
     pub fn find_duplicates(&self, video_ids: &[String]) -> AppResult<Vec<DownloadRecord>> {
         if video_ids.is_empty() {
             return Ok(Vec::new());
@@ -240,13 +240,21 @@ impl Db {
         let placeholders = vec!["?"; video_ids.len()].join(", ");
         let conn = self.conn();
         let mut stmt = conn.prepare(&format!(
-            "SELECT {COLUMNS} FROM downloads d \
+            "SELECT {COLUMNS} FROM downloads \
              WHERE video_id IN ({placeholders}) AND status IN {RELEVANT} \
-               AND id = (SELECT max(id) FROM downloads d2 \
-                         WHERE d2.video_id = d.video_id AND d2.status IN {RELEVANT})"
+             ORDER BY id DESC"
         ))?;
         let rows = stmt.query_map(rusqlite::params_from_iter(video_ids), from_row)?;
         Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// True when a record other than `id` points at `path`.
+    pub fn file_used_by_others(&self, path: &str, id: i64) -> AppResult<bool> {
+        Ok(self.conn().query_row(
+            "SELECT EXISTS (SELECT 1 FROM downloads WHERE file_path = ?1 AND id != ?2)",
+            rusqlite::params![path, id],
+            |row| row.get(0),
+        )?)
     }
 
     /// Downloads that were in flight when the app last exited can't be resumed
@@ -388,7 +396,8 @@ mod tests {
         let failed = db.insert_download(&new("failed", "x")).unwrap();
         db.set_status(failed.id, DownloadStatus::Failed, Some("e"))
             .unwrap();
-        // An older completed copy of the same video: only the newest record is returned.
+        // Another copy of the same video (maybe in another format): both are returned,
+        // newest first, and the UI picks the one matching the chosen format.
         let again = db.insert_download(&new("done", "x")).unwrap();
         db.set_status(again.id, DownloadStatus::Completed, None)
             .unwrap();
@@ -396,20 +405,28 @@ mod tests {
         let ids: Vec<String> = ["id-done", "id-queued", "id-failed", "id-missing"]
             .map(String::from)
             .to_vec();
-        let mut found: Vec<(String, i64)> = db
+        let found: Vec<i64> = db
             .find_duplicates(&ids)
             .unwrap()
             .into_iter()
-            .map(|r| (r.video_id.unwrap(), r.id))
+            .map(|r| r.id)
             .collect();
-        found.sort();
-        assert_eq!(
-            found,
-            vec![
-                ("id-done".into(), again.id),
-                ("id-queued".into(), queued.id)
-            ]
-        );
+        assert_eq!(found, vec![again.id, queued.id, done.id]);
         assert!(db.find_duplicates(&[]).unwrap().is_empty());
+    }
+
+    /// "Download again" in the same quality finds the file in place, so two records
+    /// can point at one file; deleting one must not take the other's file.
+    #[test]
+    fn shared_files_are_detected() {
+        let db = Db::open_in_memory().unwrap();
+        let a = db.insert_download(&new("a", "x")).unwrap();
+        let b = db.insert_download(&new("a", "x")).unwrap();
+        db.set_result(a.id, "/dl/a.mp4", None).unwrap();
+        assert!(!db.file_used_by_others("/dl/a.mp4", a.id).unwrap());
+        db.set_result(b.id, "/dl/a.mp4", None).unwrap();
+        assert!(db.file_used_by_others("/dl/a.mp4", a.id).unwrap());
+        assert!(db.file_used_by_others("/dl/a.mp4", b.id).unwrap());
+        assert!(!db.file_used_by_others("/dl/other.mp4", a.id).unwrap());
     }
 }

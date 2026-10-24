@@ -7,7 +7,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::components::{Component, ComponentManager, ComponentStatus, Progress, UpdateInfo};
-use crate::db::{Db, DownloadRecord, HistoryQuery, Settings};
+use crate::db::{Db, DownloadRecord, DownloadStatus, HistoryQuery, Settings};
 use crate::error::{AppError, AppResult};
 use crate::queue::{Queue, QueueEntry, QueueItemInput};
 use crate::ytdlp;
@@ -22,22 +22,37 @@ pub struct HistoryItem {
     pub file_exists: bool,
 }
 
+/// Runs `f` off the main thread: sync commands run on it, and checking files on a
+/// sleeping network drive would freeze the window.
+async fn blocking<T: Send + 'static>(
+    f: impl FnOnce() -> AppResult<T> + Send + 'static,
+) -> AppResult<T> {
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .map_err(|e| AppError::Other(e.to_string()))?
+}
+
+fn file_exists(record: &DownloadRecord) -> bool {
+    record
+        .file_path
+        .as_deref()
+        .is_some_and(|p| Path::new(p).is_file())
+}
+
 #[tauri::command]
-pub fn history_list(db: State<'_, Db>, query: HistoryQuery) -> AppResult<Vec<HistoryItem>> {
-    Ok(db
-        .list_downloads(&query)?
-        .into_iter()
-        .map(|record| {
-            let file_exists = record
-                .file_path
-                .as_deref()
-                .is_some_and(|p| Path::new(p).is_file());
-            HistoryItem {
+pub async fn history_list(db: State<'_, Db>, query: HistoryQuery) -> AppResult<Vec<HistoryItem>> {
+    let db = db.inner().clone();
+    blocking(move || {
+        Ok(db
+            .list_downloads(&query)?
+            .into_iter()
+            .map(|record| HistoryItem {
+                file_exists: file_exists(&record),
                 record,
-                file_exists,
-            }
-        })
-        .collect())
+            })
+            .collect())
+    })
+    .await
 }
 
 #[tauri::command]
@@ -52,10 +67,18 @@ pub fn history_delete(
             "download {id} is in progress, cancel it first"
         )));
     }
+    // "Download again" in the same quality reuses the file: keep it for the other record.
+    let shared = match db.get_download(id)?.and_then(|r| r.file_path) {
+        Some(path) => db.file_used_by_others(&path, id)?,
+        None => false,
+    };
     let Some(record) = db.delete_download(id)? else {
         return Ok(());
     };
-    if delete_file && let Some(path) = record.file_path {
+    if delete_file
+        && !shared
+        && let Some(path) = record.file_path
+    {
         match std::fs::remove_file(&path) {
             Ok(()) => tracing::info!(path, "deleted downloaded file"),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
@@ -74,11 +97,13 @@ pub fn settings_get(db: State<'_, Db>) -> AppResult<Settings> {
 pub fn settings_set(
     db: State<'_, Db>,
     proxy: State<'_, crate::net::ProxySetting>,
+    queue: State<'_, Queue>,
     settings: Settings,
 ) -> AppResult<Settings> {
     let saved = db.save_settings(settings)?;
     // Applies to the next request, download or probe without a restart.
     proxy.set(Some(saved.proxy.clone()).filter(|p| !p.is_empty()));
+    queue.settings_changed();
     Ok(saved)
 }
 
@@ -150,12 +175,21 @@ pub async fn queue_list(queue: State<'_, Queue>) -> AppResult<Vec<QueueEntry>> {
 }
 
 /// Newest completed or active download for each video id, to warn about duplicates.
+/// Active records and completed ones whose file is still there.
 #[tauri::command]
-pub fn find_duplicates(
+pub async fn find_duplicates(
     db: State<'_, Db>,
     video_ids: Vec<String>,
 ) -> AppResult<Vec<DownloadRecord>> {
-    db.find_duplicates(&video_ids)
+    let db = db.inner().clone();
+    blocking(move || {
+        Ok(db
+            .find_duplicates(&video_ids)?
+            .into_iter()
+            .filter(|r| r.status != DownloadStatus::Completed || file_exists(r))
+            .collect())
+    })
+    .await
 }
 
 /// Exit after the user confirmed closing with active downloads: stop them first so no

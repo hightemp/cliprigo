@@ -375,9 +375,18 @@ const scenarios = [
       await page.keyboard.press("Enter");
       await check.text("Уже скачано");
       await page.getByRole("button", { name: "Скачать" }).last().click();
-      await check.text("уже есть в истории");
+      await check.text("уже скачано в этом формате");
       check.equal(await check.count("queue_add"), 0);
+      await page.screenshot({ path: `${OUT}/06-duplicate.png` });
+      await page.getByRole("button", { name: "Отмена" }).click();
+
+      // Audio is another file: no warning, downloads at once.
+      await page.getByRole("radio", { name: "Только звук" }).click();
+      await page.getByText("Уже скачано").waitFor({ state: "detached" });
+      await page.getByRole("button", { name: "Скачать" }).last().click();
+      await check.call("queue_add");
     },
+    noFinalShot: true,
   },
   {
     name: "07-not-youtube",
