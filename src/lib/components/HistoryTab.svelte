@@ -35,19 +35,21 @@
   /** Drops responses of older requests when the filter changed meanwhile. */
   let requestId = 0;
 
-  async function load(reset: boolean) {
+  /** `keep`: reload as many rows as are shown, so the list and scroll stay put. */
+  async function load(reset: boolean, keep = false) {
     const id = ++requestId;
+    const limit = keep ? Math.max(PAGE, items.length) : PAGE;
     loading = true;
     try {
       const page = await api.historyList({
         search: search.trim() || undefined,
         status: status || undefined,
         offset: reset ? 0 : items.length,
-        limit: PAGE,
+        limit,
       });
       if (id !== requestId) return;
       items = reset ? page : appendPage(items, page);
-      hasMore = page.length === PAGE;
+      hasMore = page.length === limit;
     } catch (err) {
       toastError(err);
     } finally {
@@ -56,11 +58,14 @@
   }
 
   // Reload on filter changes (debounced while typing) and when downloads finish.
+  let lastFilter = "";
   $effect(() => {
-    void search;
-    void status;
+    const filter = JSON.stringify([search, status]);
     void app.historyVersion;
-    const timer = setTimeout(() => load(true), 250);
+    // A finished download keeps the rows loaded so far; a new filter starts over.
+    const keep = filter === lastFilter;
+    lastFilter = filter;
+    const timer = setTimeout(() => load(true, keep), 250);
     return () => clearTimeout(timer);
   });
 
@@ -141,10 +146,11 @@
         class="input"
         type="search"
         placeholder={t("history.search")}
+        aria-label={t("history.search")}
         bind:value={search}
       />
     </div>
-    <select class="input" bind:value={status}>
+    <select class="input" bind:value={status} aria-label={t("history.filter")}>
       <option value="">{t("history.all")}</option>
       {#each FILTERS as s (s)}
         <option value={s}>{t(`status.${s}`)}</option>

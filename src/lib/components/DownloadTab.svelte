@@ -89,7 +89,9 @@
     probeError = null;
     result = null;
     try {
-      info = await api.urlInspect(value);
+      const inspected = await api.urlInspect(value);
+      if (token !== probeToken) return;
+      info = inspected;
       const probed = await api.videoProbe(value);
       if (token !== probeToken) return;
       const ids =
@@ -236,6 +238,7 @@
         class="input"
         type="url"
         placeholder={t("download.placeholder")}
+        aria-label={t("download.placeholder")}
         bind:value={url}
         onpaste={onPaste}
         spellcheck="false"
@@ -257,7 +260,9 @@
 
   {#if probing}
     <div class="card status-card">
-      <div class="progress indeterminate"><div></div></div>
+      <div class="progress indeterminate" role="progressbar">
+        <div></div>
+      </div>
       <span class="muted">{t("download.probing")}</span>
     </div>
   {:else if probeError}

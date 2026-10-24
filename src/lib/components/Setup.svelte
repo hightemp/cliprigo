@@ -63,12 +63,12 @@
     return (p.downloaded / p.total) * 100;
   }
 
-  onMount(() => {
-    const unlisten = onComponentProgress((p) => {
-      const row = rows.find((r) => r.name === p.component);
-      if (row) row.progress = p;
-    });
-    api.componentsStatus().then((status) => {
+  let statusError = $state<string | null>(null);
+
+  async function loadStatus() {
+    statusError = null;
+    try {
+      const status = await api.componentsStatus();
       rows = status.map((s) => ({
         name: s.component,
         state: s.installed ? "done" : "waiting",
@@ -77,7 +77,17 @@
         raw: null,
       }));
       installMissing();
+    } catch (err) {
+      statusError = errorMessage(err, t);
+    }
+  }
+
+  onMount(() => {
+    const unlisten = onComponentProgress((p) => {
+      const row = rows.find((r) => r.name === p.component);
+      if (row) row.progress = p;
     });
+    loadStatus();
     return () => unlisten.then((u) => u());
   });
 </script>
@@ -101,7 +111,14 @@
             </span>
           </div>
           {#if row.state === "working"}
-            <div class="progress" class:indeterminate={pct === null}>
+            <div
+              class="progress"
+              class:indeterminate={pct === null}
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={pct ?? undefined}
+            >
               <div style:width="{pct ?? 0}%"></div>
             </div>
             {#if row.progress?.stage === "download" && row.progress.downloaded > 0}
@@ -126,6 +143,14 @@
         </li>
       {/each}
     </ul>
+
+    {#if statusError}
+      <p class="error small">{statusError}</p>
+      <button class="btn primary" onclick={loadStatus}>
+        <Icon name="retry" size={16} />
+        {t("common.retry")}
+      </button>
+    {/if}
 
     {#if !running && rows.some((r) => r.state === "error")}
       <button class="btn primary" onclick={installMissing}>

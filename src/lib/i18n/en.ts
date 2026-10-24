@@ -101,6 +101,7 @@ export const en = {
   },
   history: {
     search: "Search by title or channel",
+    filter: "Status",
     all: "All",
     empty: "No downloads yet",
     noResults: "Nothing found",

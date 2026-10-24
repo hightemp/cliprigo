@@ -107,6 +107,7 @@ export const ru: Messages = {
   },
   history: {
     search: "Поиск по названию или каналу",
+    filter: "Статус",
     all: "Все",
     empty: "Пока ничего не скачано",
     noResults: "Ничего не найдено",

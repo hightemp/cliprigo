@@ -4,7 +4,7 @@
   import { isAndroid } from "$lib/platform";
   import { qualityOptions, type AudioFormat, type Mode } from "$lib/selection";
   import { CODECS, type Codec } from "$lib/types";
-  import { app, t } from "$lib/state.svelte";
+  import { app, t, toastError } from "$lib/state.svelte";
   import Icon from "./Icon.svelte";
 
   let {
@@ -27,11 +27,15 @@
   const folder = $derived(outputDir ?? app.settings?.downloadDir ?? "");
 
   async function chooseFolder() {
-    const picked = await open({
-      directory: true,
-      defaultPath: folder || undefined,
-    });
-    if (typeof picked === "string") outputDir = picked;
+    try {
+      const picked = await open({
+        directory: true,
+        defaultPath: folder || undefined,
+      });
+      if (typeof picked === "string") outputDir = picked;
+    } catch (err) {
+      toastError(err);
+    }
   }
 </script>
 

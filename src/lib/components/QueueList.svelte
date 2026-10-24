@@ -77,6 +77,12 @@
               class="progress"
               class:indeterminate={entry.status !== "queued" &&
                 (busy || p?.percent == null)}
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={entry.status === "queued"
+                ? 0
+                : (p?.percent ?? undefined)}
             >
               <div
                 style:width="{entry.status === 'queued'

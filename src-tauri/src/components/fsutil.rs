@@ -35,12 +35,16 @@ pub fn replace(tmp: &Path, dest: &Path) -> AppResult<()> {
 
 /// Windows can't overwrite a running executable but can rename it, so the current
 /// binary is moved aside (and cleaned up on next start) before the new one takes its place.
+/// The name is unique: an earlier one may still be running after a second update.
 #[cfg(not(unix))]
 pub fn replace(tmp: &Path, dest: &Path) -> AppResult<()> {
     if dest.exists() {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or_default();
         let mut old = dest.as_os_str().to_owned();
-        old.push(OLD_SUFFIX);
-        let _ = std::fs::remove_file(&old);
+        old.push(format!(".{stamp}{OLD_SUFFIX}"));
         std::fs::rename(dest, &old)?;
     }
     std::fs::rename(tmp, dest)?;

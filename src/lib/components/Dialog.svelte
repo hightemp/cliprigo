@@ -14,6 +14,7 @@
   } = $props();
 
   let dialog: HTMLDialogElement;
+  const titleId = $props.id();
 
   $effect(() => {
     dialog.showModal();
@@ -27,9 +28,9 @@
     e.preventDefault();
     onclose();
   }}
-  aria-labelledby="dialog-title"
+  aria-labelledby={titleId}
 >
-  <h2 id="dialog-title">{title}</h2>
+  <h2 id={titleId}>{title}</h2>
   <div class="body">{@render children()}</div>
   <div class="actions">{@render actions()}</div>
 </dialog>

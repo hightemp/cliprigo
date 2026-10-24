@@ -80,13 +80,17 @@
   }
 
   async function chooseFolder() {
-    const picked = await open({
-      directory: true,
-      defaultPath: draft.downloadDir || undefined,
-    });
-    if (typeof picked === "string") {
-      draft.downloadDir = picked;
-      save();
+    try {
+      const picked = await open({
+        directory: true,
+        defaultPath: draft.downloadDir || undefined,
+      });
+      if (typeof picked === "string") {
+        draft.downloadDir = picked;
+        save();
+      }
+    } catch (err) {
+      toastError(err);
     }
   }
 
