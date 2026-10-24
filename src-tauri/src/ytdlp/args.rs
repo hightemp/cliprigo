@@ -108,6 +108,24 @@ impl Format {
         }
     }
 
+    /// Added to the file name, so each quality gets its own file: " 720p", " best av1".
+    fn file_suffix(self) -> String {
+        match self {
+            Self::Video { max_height, codec } => {
+                let mut suffix = match max_height {
+                    Some(h) => format!(" {h}p"),
+                    None => " best".into(),
+                };
+                if codec != Codec::Auto {
+                    suffix.push(' ');
+                    suffix.push_str(codec.name());
+                }
+                suffix
+            }
+            Self::AudioMp3 | Self::AudioM4a => String::new(),
+        }
+    }
+
     /// Value stored in `downloads.codec`.
     pub fn codec(self) -> Option<&'static str> {
         match self {
@@ -182,7 +200,7 @@ pub fn download_args(tools: &Tools, req: &DownloadRequest) -> Vec<OsString> {
         &format!("postprocess:{POSTPROCESS_PREFIX}%(progress)j"),
     ]);
     push(&["--print", &format!("after_move:{FILE_PREFIX}%(filepath)s")]);
-    push(&["-o", &req.filename_template]);
+    push(&["-o", &output_template(&req.filename_template, req.format)]);
     match req.format {
         Format::Video { max_height, codec } => {
             let sort = codec.sort(max_height);
@@ -212,6 +230,20 @@ pub fn download_args(tools: &Tools, req: &DownloadRequest) -> Vec<OsString> {
     args.push(req.output_dir.clone().into());
     push_url(&mut args, &req.url);
     args
+}
+
+/// Puts the quality suffix before the last `.%(ext)s`; templates without one are left alone.
+fn output_template(template: &str, format: Format) -> String {
+    const EXT: &str = ".%(ext)s";
+    match template.rfind(EXT) {
+        Some(i) => format!(
+            "{}{}{}",
+            &template[..i],
+            format.file_suffix(),
+            &template[i..]
+        ),
+        None => template.to_string(),
+    }
 }
 
 /// `--` stops option parsing, so a pasted "URL" can never inject yt-dlp options.
@@ -342,7 +374,55 @@ mod tests {
             "after_move:CLIPRIGO_FILE %(filepath)s"
         ));
         assert!(has_pair(&args, "-P", "/home/u/Downloads"));
-        assert!(has_pair(&args, "-o", "%(title)s [%(id)s].%(ext)s"));
+        assert!(has_pair(&args, "-o", "%(title)s [%(id)s] best.%(ext)s"));
+    }
+
+    #[test]
+    fn file_name_carries_the_requested_quality() {
+        // Otherwise a second download in another quality finds the first file under
+        // the same name, and yt-dlp skips it as "already downloaded".
+        let video = |max_height, codec| Format::Video { max_height, codec };
+        for (format, expected) in [
+            (
+                video(Some(720), Codec::Auto),
+                "%(title)s [%(id)s] 720p.%(ext)s",
+            ),
+            (
+                video(Some(1080), Codec::H264),
+                "%(title)s [%(id)s] 1080p h264.%(ext)s",
+            ),
+            (
+                video(None, Codec::Av1),
+                "%(title)s [%(id)s] best av1.%(ext)s",
+            ),
+            // Audio formats already differ by extension.
+            (Format::AudioMp3, "%(title)s [%(id)s].%(ext)s"),
+            (Format::AudioM4a, "%(title)s [%(id)s].%(ext)s"),
+        ] {
+            let args = strings(download_args(&test_tools(), &request(format)));
+            assert!(has_pair(&args, "-o", expected), "{format:?}");
+        }
+    }
+
+    #[test]
+    fn custom_template_gets_quality_before_the_extension() {
+        let format = Format::Video {
+            max_height: Some(480),
+            codec: Codec::Auto,
+        };
+        for (template, expected) in [
+            (
+                "%(uploader)s/%(title)s.%(ext)s",
+                "%(uploader)s/%(title)s 480p.%(ext)s",
+            ),
+            // No extension field: appending would end up after the extension.
+            ("%(title)s", "%(title)s"),
+        ] {
+            let mut req = request(format);
+            req.filename_template = template.into();
+            let args = strings(download_args(&test_tools(), &req));
+            assert!(has_pair(&args, "-o", expected), "{template}");
+        }
     }
 
     #[test]

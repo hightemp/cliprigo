@@ -154,7 +154,8 @@ export const en = {
     defaultCodec: "Default codec",
     concurrency: "Simultaneous downloads",
     filenameTemplate: "File name template",
-    filenameHint: "yt-dlp output template, e.g. %(title)s [%(id)s].%(ext)s",
+    filenameHint:
+      "yt-dlp output template, e.g. %(title)s [%(id)s].%(ext)s. Video quality is added before .%(ext)s: 720p, best h264.",
     language: "Language",
     languageSystem: "System",
     autoUpdate: "Check for yt-dlp updates on start",

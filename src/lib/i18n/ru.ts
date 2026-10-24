@@ -158,7 +158,8 @@ export const ru: Messages = {
     defaultCodec: "Кодек по умолчанию",
     concurrency: "Одновременных загрузок",
     filenameTemplate: "Шаблон имени файла",
-    filenameHint: "Шаблон yt-dlp, например %(title)s [%(id)s].%(ext)s",
+    filenameHint:
+      "Шаблон yt-dlp, например %(title)s [%(id)s].%(ext)s. Перед .%(ext)s добавляется качество видео: 720p, best h264.",
     language: "Язык",
     languageSystem: "Системный",
     autoUpdate: "Проверять обновления yt-dlp при запуске",
