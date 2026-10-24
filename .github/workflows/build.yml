@@ -175,8 +175,9 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: android-actions/setup-android@v3
-      - name: Install NDK
-        run: sdkmanager "ndk;28.0.12433566"
+        with:
+          # The default list still has "tools", which no longer exists.
+          packages: platform-tools ndk;28.0.12433566
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi
