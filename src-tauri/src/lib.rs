@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use futures_util::FutureExt;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 use tracing_subscriber::EnvFilter;
 
 use components::{Component, ComponentManager, Progress};
@@ -180,6 +180,29 @@ pub fn run() {
             commands::find_duplicates,
             commands::app_quit,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| match event {
+            // Exit without a window close (Cmd+Q on macOS): ask first, like closing.
+            // app_quit exits with a code and passes.
+            RunEvent::ExitRequested {
+                code: None, api, ..
+            } if app.try_state::<Queue>().is_some_and(|q| q.has_active()) => {
+                api.prevent_exit();
+                let _ = app.emit("app://close-requested", ());
+            }
+            // The process ends without dropping the children: stop yt-dlp so it does
+            // not keep downloading on its own.
+            RunEvent::Exit => {
+                let Some(queue) = app.try_state::<Queue>() else {
+                    return;
+                };
+                tauri::async_runtime::block_on(async {
+                    let _ =
+                        tokio::time::timeout(std::time::Duration::from_secs(5), queue.cancel_all())
+                            .await;
+                });
+            }
+            _ => {}
+        });
 }

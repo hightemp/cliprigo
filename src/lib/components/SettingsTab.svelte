@@ -4,6 +4,7 @@
   import { api, onComponentProgress } from "$lib/api";
   import { formatBytes, qualityLabel } from "$lib/format";
   import { componentLabel, isAndroid, isBundled } from "$lib/platform";
+  import { mergeSaved } from "$lib/settings";
   import {
     app,
     applySettings,
@@ -36,17 +37,19 @@
   let progress = $state<ComponentProgress | null>(null);
 
   async function save() {
+    const sent = $state.snapshot(draft);
     try {
-      const saved = await api.settingsSet($state.snapshot(draft));
+      const saved = await api.settingsSet(sent);
       applySettings(saved);
-      draft = { ...saved };
+      draft = mergeSaved(sent, saved, $state.snapshot(draft));
       savedVisible = true;
       clearTimeout(savedTimer);
       savedTimer = setTimeout(() => (savedVisible = false), 1500);
     } catch (err) {
       toastError(err);
       // Show what is actually stored, not the rejected value.
-      if (app.settings) draft = { ...app.settings };
+      if (app.settings)
+        draft = mergeSaved(sent, app.settings, $state.snapshot(draft));
     }
   }
 
