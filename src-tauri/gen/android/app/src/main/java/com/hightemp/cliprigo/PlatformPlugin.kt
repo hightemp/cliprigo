@@ -56,6 +56,9 @@ class PlatformPlugin(private val activity: Activity) : Plugin(activity) {
       val service = Intent(activity, DownloadService::class.java)
       if (text == null) {
         activity.stopService(service)
+      } else if (DownloadService.running) {
+        // Starting it again may be refused while the app is in the background.
+        DownloadService.update(activity, text)
       } else {
         askForNotifications()
         service.putExtra(DownloadService.EXTRA_TEXT, text)

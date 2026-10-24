@@ -13,6 +13,16 @@ class MainActivity : TauriActivity() {
     super.onCreate(savedInstanceState)
   }
 
+  /**
+   * Tauri's back handlers call this when the WebView can't go back. Finishing the
+   * activity would end the process and with it any running downloads, so Back leaves
+   * the app running in the background, like Home.
+   */
+  @Deprecated("Called by Tauri's back handlers")
+  override fun onBackPressed() {
+    moveTaskToBack(true)
+  }
+
   /** Paths the Rust side reads at startup, see src-tauri/src/components/bundled.rs. */
   private fun exportPaths() {
     Os.setenv("CLIPRIGO_NATIVE_LIB_DIR", applicationInfo.nativeLibraryDir, true)
