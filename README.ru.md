@@ -10,13 +10,13 @@
   <a href="https://github.com/hightemp/cliprigo/actions/workflows/build.yml"><img alt="Build" src="https://github.com/hightemp/cliprigo/actions/workflows/build.yml/badge.svg"></a>
   <a href="https://github.com/hightemp/cliprigo/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/hightemp/cliprigo"></a>
   <a href="https://github.com/hightemp/cliprigo/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/hightemp/cliprigo/total"></a>
-  <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-blue">
+  <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-blue">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/hightemp/cliprigo"></a>
 </p>
 
 <p align="center"><a href="README.md">English</a> | <b>Русский</b></p>
 
-Небольшое кроссплатформенное приложение для скачивания видео с YouTube. Ведёт историю всего скачанного, чтобы ничего не потерялось.
+Небольшое приложение для Windows, macOS, Linux и Android для скачивания видео с YouTube. Ведёт историю всего скачанного, чтобы ничего не потерялось.
 
 Cliprigo — удобная оболочка над [yt-dlp](https://github.com/yt-dlp/yt-dlp). Приложение само скачивает и обновляет yt-dlp, ffmpeg и Deno, вручную ничего ставить не нужно.
 
@@ -41,11 +41,12 @@ Cliprigo — удобная оболочка над [yt-dlp](https://github.com/
 
 Скачайте установщик для своей системы на странице [Releases](https://github.com/hightemp/cliprigo/releases):
 
-| Система | Файл                                        |
-| ------- | ------------------------------------------- |
-| Windows | `.msi` или `-setup.exe` (x64, ARM64)        |
-| macOS   | `.dmg` (Apple Silicon, Intel)               |
-| Linux   | `.AppImage`, `.deb` или `.rpm` (x64, ARM64) |
+| Система | Файл                                                                        |
+| ------- | --------------------------------------------------------------------------- |
+| Windows | `.msi` или `-setup.exe` (x64, ARM64)                                        |
+| macOS   | `.dmg` (Apple Silicon, Intel)                                               |
+| Linux   | `.AppImage`, `.deb` или `.rpm` (x64, ARM64)                                 |
+| Android | `.apk`: `arm64` для большинства телефонов, `armv7` для старых (Android 11+) |
 
 При первом запуске Cliprigo скачивает yt-dlp, ffmpeg и Deno (около 200 МБ) из официальных релизов на GitHub и проверяет их контрольные суммы.
 
@@ -58,6 +59,10 @@ Cliprigo — удобная оболочка над [yt-dlp](https://github.com/
   Или в терминале: `xattr -dr com.apple.quarantine /Applications/Cliprigo.app`.
 - **Linux:** ничего делать не нужно.
 
+### Android
+
+Откройте `.apk` на телефоне и, когда система спросит, разрешите установку приложений из браузера или файлового менеджера. ffmpeg и QuickJS (вместо Deno) встроены в приложение, при первом запуске скачивается только yt-dlp (около 3 МБ). Файлы сохраняются в **Download/Cliprigo**. Пока идут загрузки, уведомление не даёт им остановиться, если переключиться в другое приложение.
+
 ## Где хранятся данные
 
 | Данные                                 | Windows                                     | macOS                                                 | Linux                                       |
@@ -65,7 +70,7 @@ Cliprigo — удобная оболочка над [yt-dlp](https://github.com/
 | История, настройки, yt-dlp/ffmpeg/Deno | `%APPDATA%\com.hightemp.cliprigo`           | `~/Library/Application Support/com.hightemp.cliprigo` | `~/.local/share/com.hightemp.cliprigo`      |
 | Логи                                   | `%LOCALAPPDATA%\com.hightemp.cliprigo\logs` | `~/Library/Logs/com.hightemp.cliprigo`                | `~/.local/share/com.hightemp.cliprigo/logs` |
 
-По умолчанию файлы сохраняются в папку «Загрузки», её можно сменить в настройках.
+По умолчанию файлы сохраняются в папку «Загрузки», её можно сменить в настройках. На Android всё хранится во внутренней памяти приложения, кроме самих файлов в Download/Cliprigo.
 
 ## Если что-то не работает
 
@@ -83,7 +88,10 @@ pnpm tauri dev      # запуск в режиме разработки
 pnpm tauri build    # сборка установщиков
 pnpm lint           # prettier + svelte-check + vitest
 pnpm ui:preview     # UI-сценарии в headless Chrome со скриншотами (нужен Google Chrome)
+PREVIEW_MOBILE=1 pnpm ui:preview  # то же в размере телефона
 ```
+
+Для Android нужны Android SDK и NDK (`ANDROID_HOME`, `NDK_HOME`) и JDK 21: `pnpm tauri android build --apk --target aarch64`. Сборка скачивает Python, ffmpeg и QuickJS для Android из [youtubedl-android](https://github.com/yausername/youtubedl-android) и сверяет их с закреплёнными SHA-256 (см. `src-tauri/gen/android/app/build.gradle.kts`).
 
 Rust-тесты: `cargo test` в `src-tauri`. Сквозные тесты с настоящим YouTube запускаются отдельно:
 `cargo test live_ -- --ignored --test-threads=1`.
@@ -96,7 +104,7 @@ Rust-тесты: `cargo test` в `src-tauri`. Сквозные тесты с н�
 
 ## Дисклеймер
 
-Cliprigo не содержит yt-dlp, ffmpeg и Deno, а скачивает их из официальных релизов. Скачивайте только тот контент, на который у вас есть права, и соблюдайте условия использования сервисов.
+Десктопная версия не содержит yt-dlp, ffmpeg и Deno, а скачивает их из официальных релизов. Android-версия содержит Python, ffmpeg и QuickJS, собранные проектом [youtubedl-android](https://github.com/yausername/youtubedl-android) (GPL-3.0), и запускает их как отдельные программы. Скачивайте только тот контент, на который у вас есть права, и соблюдайте условия использования сервисов.
 
 ## Лицензия
 
