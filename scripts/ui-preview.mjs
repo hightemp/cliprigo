@@ -753,6 +753,12 @@ const scenarios = [
         .getByRole("button", { name: "Проверить", exact: true })
         .click();
       await check.text("Прокси отказался соединять с YouTube");
+      // The mark sits on the first line of the message, not on a line of its own.
+      const [mark, message] = await page
+        .locator(".proxy-result > svg, .proxy-result > span")
+        .evaluateAll((els) => els.map((e) => e.getBoundingClientRect().top));
+      if (Math.abs(mark - message) > 6)
+        throw new Error(`mark at ${mark}, message at ${message}`);
       await page
         .getByRole("button", { name: "Скопировать подробности" })
         .click();
@@ -972,6 +978,26 @@ try {
           return `${el?.tagName}.${el?.className} ${el?.textContent?.slice(0, 40)}`;
         });
         if (wide) throw new Error(`wider than the screen: ${wide}`);
+        // Fingers need targets of 44 px or more; name the ones that are smaller.
+        const small = await page.evaluate(() =>
+          [...document.querySelectorAll("button, summary, [role=radio]")]
+            .filter((e) => e.checkVisibility() && !e.closest("[inert]"))
+            .map((e) => [e, e.getBoundingClientRect()])
+            .filter(([, r]) => r.width < 44 || r.height < 44)
+            .map(
+              ([e, r]) =>
+                `${e.getAttribute("aria-label") ?? e.textContent.trim().slice(0, 30)} ${Math.round(r.width)}×${Math.round(r.height)}`,
+            ),
+        );
+        if (small.length) throw new Error(`small targets: ${small.join(", ")}`);
+        // A badge wrapping to two lines squeezes the title next to it.
+        const tall = await page.evaluate(() =>
+          [...document.querySelectorAll(".badge")]
+            .filter((e) => e.getBoundingClientRect().height > 24)
+            .map((e) => e.textContent.trim()),
+        );
+        if (tall.length)
+          throw new Error(`badges on two lines: ${tall.join(", ")}`);
       }
       if (!scenario.noFinalShot) {
         await page.screenshot({ path: `${OUT}/${scenario.name}.png` });

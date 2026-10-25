@@ -486,12 +486,22 @@
     min-width: 0;
   }
 
+  /* Mark beside the first line of the message, the button under the message. */
   .proxy-result {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
     gap: 6px;
     color: var(--danger);
+  }
+
+  .proxy-result > :global(svg) {
+    margin-top: 2px;
+  }
+
+  .proxy-result > button {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .small-btn {

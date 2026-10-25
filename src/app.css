@@ -199,8 +199,11 @@ select.input {
   }
 }
 
+/* One line always: a wrapped badge squeezes the title next to it. */
 .badge {
   display: inline-block;
+  flex: none;
+  white-space: nowrap;
   padding: 1px 8px;
   border-radius: 999px;
   font-size: 12px;
@@ -216,4 +219,28 @@ select.input {
 .badge.danger {
   background: var(--danger-soft);
   color: var(--danger);
+}
+
+/* Touch screens: 44 px targets, the size a fingertip hits reliably. Min sizes
+   win over the compact heights components set for the mouse. */
+@media (pointer: coarse) {
+  button,
+  [role="radio"] {
+    min-height: 44px;
+  }
+
+  .icon-btn {
+    min-width: 44px;
+  }
+
+  .input,
+  select.input {
+    height: 44px;
+  }
+
+  summary {
+    padding: 12px 0;
+    min-height: 44px;
+    box-sizing: border-box;
+  }
 }

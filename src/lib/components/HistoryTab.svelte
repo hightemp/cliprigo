@@ -191,89 +191,89 @@
             {#if error}
               <div class="error small">{error}</div>
             {/if}
-            <div class="actions">
-              {#if canOpen}
-                <button
-                  class="btn small-btn"
-                  onclick={() => run(() => api.historyOpen(item.id), item)}
-                >
-                  <Icon name="play" size={14} />
-                  {t("history.open")}
-                </button>
-                {#if !isAndroid}
-                  <button
-                    class="icon-btn"
-                    title={t("history.showInFolder")}
-                    aria-label={t("history.showInFolder")}
-                    onclick={() => run(() => api.historyReveal(item.id), item)}
-                  >
-                    <Icon name="folder" size={16} />
-                  </button>
-                {/if}
-              {/if}
-              {#if item.status === "failed"}
+          </div>
+          <div class="actions">
+            {#if canOpen}
+              <button
+                class="btn small-btn"
+                onclick={() => run(() => api.historyOpen(item.id), item)}
+              >
+                <Icon name="play" size={14} />
+                {t("history.open")}
+              </button>
+              {#if !isAndroid}
                 <button
                   class="icon-btn"
-                  title={t("errors.copyDetails")}
-                  aria-label={t("errors.copyDetails")}
-                  onclick={() =>
-                    copyDetails(
-                      parseStoredError(item.error),
-                      `download ${item.url} (${item.format}${item.quality ? ` ${item.quality}p` : ""})`,
-                    )}
+                  title={t("history.showInFolder")}
+                  aria-label={t("history.showInFolder")}
+                  onclick={() => run(() => api.historyReveal(item.id), item)}
                 >
-                  <Icon name="paste" size={16} />
+                  <Icon name="folder" size={16} />
                 </button>
               {/if}
-              {#if ["failed", "canceled", "interrupted"].includes(item.status)}
-                <button class="btn small-btn" onclick={() => retry(item)}>
-                  <Icon name="retry" size={14} />
-                  {t("history.retry")}
-                </button>
-              {:else if item.status === "completed"}
-                <button
-                  class="icon-btn"
-                  title={t("history.downloadAgain")}
-                  aria-label={t("history.downloadAgain")}
-                  onclick={() => downloadAgain(item)}
-                >
-                  <Icon name="download" size={16} />
-                </button>
-              {/if}
+            {/if}
+            {#if item.status === "failed"}
               <button
                 class="icon-btn"
-                title={t("history.copyLink")}
-                aria-label={t("history.copyLink")}
+                title={t("errors.copyDetails")}
+                aria-label={t("errors.copyDetails")}
                 onclick={() =>
-                  run(async () => {
-                    await writeText(item.url);
-                    toast(t("history.copied"));
-                  })}
+                  copyDetails(
+                    parseStoredError(item.error),
+                    `download ${item.url} (${item.format}${item.quality ? ` ${item.quality}p` : ""})`,
+                  )}
               >
-                <Icon name="link" size={16} />
+                <Icon name="paste" size={16} />
               </button>
+            {/if}
+            {#if ["failed", "canceled", "interrupted"].includes(item.status)}
+              <button class="btn small-btn" onclick={() => retry(item)}>
+                <Icon name="retry" size={14} />
+                {t("history.retry")}
+              </button>
+            {:else if item.status === "completed"}
               <button
                 class="icon-btn"
-                title={t("history.openYoutube")}
-                aria-label={t("history.openYoutube")}
-                onclick={() => run(() => openUrl(item.url))}
+                title={t("history.downloadAgain")}
+                aria-label={t("history.downloadAgain")}
+                onclick={() => downloadAgain(item)}
               >
-                <Icon name="external" size={16} />
+                <Icon name="download" size={16} />
               </button>
-              {#if !active}
-                <button
-                  class="icon-btn"
-                  title={t("history.remove")}
-                  aria-label={t("history.remove")}
-                  onclick={() => {
-                    deleteFile = false;
-                    removing = item;
-                  }}
-                >
-                  <Icon name="trash" size={16} />
-                </button>
-              {/if}
-            </div>
+            {/if}
+            <button
+              class="icon-btn"
+              title={t("history.copyLink")}
+              aria-label={t("history.copyLink")}
+              onclick={() =>
+                run(async () => {
+                  await writeText(item.url);
+                  toast(t("history.copied"));
+                })}
+            >
+              <Icon name="link" size={16} />
+            </button>
+            <button
+              class="icon-btn"
+              title={t("history.openYoutube")}
+              aria-label={t("history.openYoutube")}
+              onclick={() => run(() => openUrl(item.url))}
+            >
+              <Icon name="external" size={16} />
+            </button>
+            {#if !active}
+              <button
+                class="icon-btn"
+                title={t("history.remove")}
+                aria-label={t("history.remove")}
+                onclick={() => {
+                  deleteFile = false;
+                  removing = item;
+                }}
+              >
+                <Icon name="trash" size={16} />
+              </button>
+            {/if}
           </div>
         </li>
       {/each}
@@ -352,15 +352,25 @@
     gap: 8px;
   }
 
+  /* Actions sit under the text, or under the whole card on a narrow screen. */
   li {
-    display: flex;
-    gap: 12px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "thumb main"
+      "thumb actions";
+    align-content: start;
+    column-gap: 12px;
+    row-gap: 4px;
     padding: 10px;
-    align-items: flex-start;
+  }
+
+  li > :global(:first-child) {
+    grid-area: thumb;
   }
 
   .main {
-    flex: 1;
+    grid-area: main;
     min-width: 0;
     display: grid;
     gap: 4px;
@@ -387,8 +397,10 @@
   }
 
   .actions {
+    grid-area: actions;
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 2px;
     margin-top: 2px;
   }
@@ -413,5 +425,13 @@
 
   p {
     margin: 0 0 12px;
+  }
+
+  @media (max-width: 600px) {
+    li {
+      grid-template-areas:
+        "thumb main"
+        "actions actions";
+    }
   }
 </style>
