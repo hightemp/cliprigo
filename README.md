@@ -12,6 +12,7 @@
   <a href="https://github.com/hightemp/cliprigo/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/hightemp/cliprigo/total"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-blue">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/hightemp/cliprigo"></a>
+  <img src="https://asdertasd.site/counter/cliprigo" alt="Statistics" />
 </p>
 
 <p align="center"><b>English</b> | <a href="README.ru.md">Русский</a></p>
