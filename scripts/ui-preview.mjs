@@ -1250,6 +1250,48 @@ const scenarios = [
     noFinalShot: true,
   },
   {
+    // English screenshots of search and favorites for the README and the site.
+    name: "29-search-en",
+    theme: "light",
+    responses: ready("en", {
+      youtube_search: { entries: SEARCH_RESULTS, hasMore: true },
+      favorites_list: [favorite(SEARCH_RESULTS[2], 100)],
+      find_duplicates: [
+        record(9, {
+          videoId: SEARCH_RESULTS[1].id,
+          status: "completed",
+          completedAt: NOW,
+        }),
+      ],
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Search" }).click();
+      await page.getByLabel("Search YouTube").fill("timelapse mountains");
+      await page.keyboard.press("Enter");
+      await check.text(SEARCH_RESULTS[0].title);
+      await page.getByRole("button", { name: "Filters" }).click();
+      await check.choose(page.getByLabel("Length"), { value: "medium" });
+      await page.getByRole("checkbox", { name: "4K" }).check();
+      await check.text("1.2M views");
+      // Let the checkbox finish its animation before the screenshot.
+      await page.waitForTimeout(300);
+    },
+  },
+  {
+    name: "30-favorites-en",
+    theme: "light",
+    responses: ready("en", {
+      favorites_list: [0, 2, 4, 1].map((i, n) =>
+        favorite(SEARCH_RESULTS[i], 100 * (n + 1)),
+      ),
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Favorites" }).click();
+      await check.text("Queue all");
+      check.equal(await page.locator("li.card:visible").count(), 4);
+    },
+  },
+  {
     name: "25-android-share",
     theme: "light",
     responses: ready("ru", {

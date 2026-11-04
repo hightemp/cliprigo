@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src-tauri/icons/128x128@2x.png" alt="Cliprigo icon" width="128" height="128">
+  <img src="src-tauri/icons/cliprigo/128x128@2x.png" alt="Cliprigo icon" width="128" height="128">
 </p>
 
 <h1 align="center">Cliprigo</h1>
@@ -34,11 +34,13 @@ Cliprigo is a friendly front end for [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 - **History** of every download with search, a status filter, thumbnails that work offline, and quick actions: open the file, show it in its folder, copy the link, retry, download again.
 - **Duplicate warning** before downloading a video that's already in your history or queue.
 - **Keeps itself working.** yt-dlp is checked for updates on start, since YouTube changes often.
-- English and Russian interface, light and dark theme following the system.
+- English and Russian interface, light and dark theme following the system. Controls are drawn by the app itself, and on phones the tabs sit in a bottom bar.
 
-| Playlist                                      | History                                     | Settings                                      |
-| --------------------------------------------- | ------------------------------------------- | --------------------------------------------- |
-| ![Playlist](docs/screenshots/playlist-en.png) | ![History](docs/screenshots/history-en.png) | ![Settings](docs/screenshots/settings-en.png) |
+| Search with filters                           | Favorites                                       |
+| --------------------------------------------- | ----------------------------------------------- |
+| ![Search](docs/screenshots/search-en.png)     | ![Favorites](docs/screenshots/favorites-en.png) |
+| **Playlist**                                  | **History**                                     |
+| ![Playlist](docs/screenshots/playlist-en.png) | ![History](docs/screenshots/history-en.png)     |
 
 ## Install
 
