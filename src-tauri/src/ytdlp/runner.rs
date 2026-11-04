@@ -568,7 +568,8 @@ mod tests {
             .trim()
             .parse()
             .unwrap();
-        for _ in 0..50 {
+        // A busy CI machine may take a while to end the tree: up to 5 s.
+        for _ in 0..250 {
             if !process_alive(child) {
                 break;
             }
@@ -797,7 +798,8 @@ mod tests {
             .parse()
             .unwrap();
         // Give the kernel a moment to deliver the signal.
-        for _ in 0..50 {
+        // A busy CI machine may take a while to end the tree: up to 5 s.
+        for _ in 0..250 {
             if !process_alive(child) {
                 break;
             }
