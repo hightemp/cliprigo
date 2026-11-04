@@ -7,7 +7,9 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::components::{Component, ComponentManager, ComponentStatus, Progress, UpdateInfo};
-use crate::db::{Db, DownloadRecord, DownloadStatus, HistoryQuery, Settings};
+use crate::db::{
+    Db, DownloadRecord, DownloadStatus, Favorite, HistoryQuery, NewFavorite, Settings,
+};
 use crate::error::{AppError, AppResult};
 use crate::queue::{Queue, QueueEntry, QueueItemInput};
 use crate::ytdlp;
@@ -86,6 +88,28 @@ pub fn history_delete(
         }
     }
     Ok(())
+}
+
+#[tauri::command]
+pub fn favorites_list(db: State<'_, Db>) -> AppResult<Vec<Favorite>> {
+    db.list_favorites()
+}
+
+/// Saves a video found in search; saving it again refreshes its details.
+#[tauri::command]
+pub fn favorites_add(db: State<'_, Db>, video: NewFavorite) -> AppResult<Favorite> {
+    if !crate::player::is_video_id(&video.id) {
+        return Err(AppError::Other(format!(
+            "not a YouTube video id: {}",
+            video.id
+        )));
+    }
+    db.add_favorite(&video)
+}
+
+#[tauri::command]
+pub fn favorites_remove(db: State<'_, Db>, id: String) -> AppResult<()> {
+    db.remove_favorite(&id).map(|_| ())
 }
 
 #[tauri::command]

@@ -1,31 +1,21 @@
 <script lang="ts">
   import { api } from "$lib/api";
   import { errorMessage } from "$lib/errors";
-  import { formatDuration, formatViews, pluralCount } from "$lib/format";
   import { appendPage } from "$lib/history";
   import { NO_FILTERS, activeFilters, toggleFeature } from "$lib/search";
-  import { defaultFormat, duplicatesFor } from "$lib/selection";
-  import {
-    app,
-    copyDetails,
-    openInBrowser,
-    openInDownload,
-    t,
-    toast,
-    toastError,
-  } from "$lib/state.svelte";
-  import {
-    ACTIVE_STATUSES,
-    type DownloadRecord,
-    type PlaylistEntry,
-    type SearchFeature,
-    type SearchFilters,
+  import { copyDetails, openInDownload, t } from "$lib/state.svelte";
+  import type {
+    DownloadRecord,
+    PlaylistEntry,
+    SearchFeature,
+    SearchFilters,
   } from "$lib/types";
+  import { queueVideos, videoMeta, videoStatus } from "$lib/videos.svelte";
   import Icon from "./Icon.svelte";
   import PlayerDialog from "./PlayerDialog.svelte";
   import SearchField from "./SearchField.svelte";
   import Select from "./Select.svelte";
-  import Thumb from "./Thumb.svelte";
+  import VideoRow from "./VideoRow.svelte";
 
   let query = $state("");
   let searched = $state("");
@@ -50,15 +40,6 @@
   }
   /** Drops answers to an older search when a new one started meanwhile. */
   let requestId = 0;
-
-  /** Videos a quick add would download again: same file name. */
-  const duplicates = $derived(
-    duplicatesFor(
-      existing,
-      defaultFormat(app.settings),
-      app.settings?.downloadDir ?? "",
-    ),
-  );
 
   async function search(next: boolean) {
     const text = next ? searched : query.trim();
@@ -98,55 +79,9 @@
     }
   }
 
-  /** "Downloaded" / "In the queue", whatever the format. */
-  function status(entry: PlaylistEntry): string | null {
-    const records = existing.filter((r) => r.videoId === entry.id);
-    if (records.some((r) => ACTIVE_STATUSES.includes(r.status)))
-      return t("search.inQueue");
-    if (records.some((r) => r.status === "completed"))
-      return t("search.downloaded");
-    return null;
-  }
-
-  function meta(entry: PlaylistEntry): string {
-    const views =
-      entry.viewCount === null
-        ? ""
-        : t("search.views", {
-            count: pluralCount(entry.viewCount),
-            views: formatViews(entry.viewCount, app.lang),
-          });
-    return [entry.uploader, views, formatDuration(entry.duration)]
-      .filter(Boolean)
-      .join(" · ");
-  }
-
   async function addToQueue(entry: PlaylistEntry) {
-    const duplicate = duplicates[entry.id];
-    if (duplicate?.status === "completed") {
-      toast(t("search.alreadyHave"));
-      return;
-    }
-    try {
-      const added = await api.queueAdd([
-        {
-          url: entry.url,
-          videoId: entry.id,
-          title: entry.title,
-          uploader: entry.uploader,
-          duration: entry.duration,
-          thumbnailUrl: entry.thumbnail,
-          playlistId: null,
-          playlistTitle: null,
-          format: defaultFormat(app.settings),
-          outputDir: null,
-        },
-      ]);
-      existing = [...added, ...existing];
-      toast(t("search.added"));
-    } catch (err) {
-      toastError(err);
-    }
+    const added = await queueVideos([entry]);
+    existing = [...added, ...existing];
   }
 
   function download(entry: PlaylistEntry) {
@@ -272,62 +207,13 @@
   {#if results.length > 0}
     <ul>
       {#each results as entry (entry.id)}
-        {@const badge = status(entry)}
-        <li class="card">
-          <button
-            class="cover"
-            onclick={() => (watching = entry)}
-            aria-label={`${t("search.watch")}: ${entry.title}`}
-          >
-            <Thumb src={entry.thumbnail} width={168} />
-            {#if entry.duration}
-              <span class="duration">{formatDuration(entry.duration)}</span>
-            {/if}
-          </button>
-          <div class="main">
-            <span class="title" data-tip={entry.title}>{entry.title}</span>
-            <div class="muted small">{meta(entry)}</div>
-            {#if entry.live || badge}
-              <div class="badges">
-                {#if entry.live}
-                  <span class="badge danger">{t("search.live")}</span>
-                {/if}
-                {#if badge}<span class="badge warning">{badge}</span>{/if}
-              </div>
-            {/if}
-          </div>
-          <div class="actions">
-            <button class="btn small-btn" onclick={() => (watching = entry)}>
-              <Icon name="play" size={14} />
-              {t("search.watch")}
-            </button>
-            {#if !entry.live}
-              <button
-                class="btn small-btn"
-                data-tip={t("search.downloadHint")}
-                onclick={() => download(entry)}
-              >
-                <Icon name="download" size={14} />
-                {t("search.download")}
-              </button>
-              <button
-                class="btn small-btn"
-                data-tip={t("search.queueHint")}
-                onclick={() => addToQueue(entry)}
-              >
-                {t("search.queue")}
-              </button>
-            {/if}
-            <button
-              class="icon-btn"
-              data-tip={t("search.openOnYoutube")}
-              aria-label={t("search.openOnYoutube")}
-              onclick={() => openInBrowser(entry.url)}
-            >
-              <Icon name="external" size={16} />
-            </button>
-          </div>
-        </li>
+        <VideoRow
+          {entry}
+          badge={videoStatus(existing, entry.id)}
+          onwatch={() => (watching = entry)}
+          ondownload={() => download(entry)}
+          onqueue={() => addToQueue(entry)}
+        />
       {/each}
     </ul>
     {#if hasMore}
@@ -353,7 +239,7 @@
   {@const entry = watching}
   <PlayerDialog
     {entry}
-    meta={meta(entry)}
+    meta={videoMeta(entry)}
     onclose={() => (watching = null)}
     ondownload={() => download(entry)}
     onqueue={() => addToQueue(entry)}
@@ -501,76 +387,6 @@
     gap: 8px;
   }
 
-  /* Actions sit under the text, or under the whole card on a narrow screen. */
-  li {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas:
-      "thumb main"
-      "thumb actions";
-    align-content: start;
-    column-gap: 12px;
-    row-gap: 4px;
-    padding: 10px;
-    align-items: start;
-  }
-
-  .cover {
-    grid-area: thumb;
-    position: relative;
-    padding: 0;
-    border: 0;
-    border-radius: var(--radius-sm);
-    background: none;
-    cursor: pointer;
-  }
-
-  .duration {
-    position: absolute;
-    right: 4px;
-    bottom: 4px;
-    padding: 0 4px;
-    border-radius: 4px;
-    background: rgb(0 0 0 / 0.75);
-    color: #fff;
-    font-size: 12px;
-    line-height: 18px;
-  }
-
-  .main {
-    grid-area: main;
-    min-width: 0;
-    display: grid;
-    gap: 4px;
-  }
-
-  .title {
-    font-weight: 500;
-    line-height: 1.3;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .small {
-    font-size: 12px;
-  }
-
-  .badges {
-    display: flex;
-    gap: 6px;
-  }
-
-  .actions {
-    grid-area: actions;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-
   .small-btn {
     height: 28px;
     padding: 0 10px;
@@ -597,16 +413,6 @@
     .search-row .btn {
       flex: 1;
       justify-content: center;
-    }
-
-    li {
-      grid-template-areas:
-        "thumb main"
-        "actions actions";
-    }
-
-    .cover :global(.thumb) {
-      width: 120px !important;
     }
   }
 </style>

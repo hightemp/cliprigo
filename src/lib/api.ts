@@ -5,6 +5,8 @@ import type {
   ComponentProgress,
   ComponentStatus,
   DownloadRecord,
+  Favorite,
+  FavoriteInput,
   HistoryItem,
   HistoryQuery,
   ProbeResult,
@@ -32,6 +34,11 @@ export const api = {
   /** Android: text shared to the app, once. */
   sharedTake: () => invoke<string | null>("shared_take"),
   diagnostics: () => invoke<string>("diagnostics"),
+
+  favoritesList: () => invoke<Favorite[]>("favorites_list"),
+  favoritesAdd: (video: FavoriteInput) =>
+    invoke<Favorite>("favorites_add", { video }),
+  favoritesRemove: (id: string) => invoke<void>("favorites_remove", { id }),
 
   settingsGet: () => invoke<Settings>("settings_get"),
   settingsSet: (settings: Settings) =>

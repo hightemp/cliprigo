@@ -39,6 +39,19 @@ const MIGRATIONS: &[&str] = &[
     "ALTER TABLE downloads ADD COLUMN output_dir TEXT;",
     // 3: video codec preference, so retries use the same one
     "ALTER TABLE downloads ADD COLUMN codec TEXT;",
+    // 4: videos saved from search
+    r#"
+    CREATE TABLE favorites (
+        video_id      TEXT PRIMARY KEY,
+        url           TEXT NOT NULL,
+        title         TEXT NOT NULL,
+        uploader      TEXT,
+        duration      INTEGER,
+        thumbnail_url TEXT,
+        view_count    INTEGER,
+        added_at      INTEGER NOT NULL
+    );
+    "#,
 ];
 
 pub fn run(conn: &mut Connection) -> AppResult<()> {

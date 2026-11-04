@@ -13,6 +13,7 @@ export const ru: Messages = {
   tabs: {
     download: "Загрузка",
     search: "Поиск",
+    favorites: "Избранное",
     history: "История",
     settings: "Настройки",
   },
@@ -121,6 +122,27 @@ export const ru: Messages = {
         subtitles: "Субтитры",
       },
     },
+  },
+  favorites: {
+    save: "В избранное",
+    saved: "В избранном",
+    empty:
+      "Пока пусто. Отмечайте ролики звёздочкой в поиске, чтобы вернуться к ним позже.",
+    filter: "Найти в избранном",
+    queueAll: "Все в очередь",
+    queueShown: {
+      one: "{count} ролик в очередь",
+      few: "{count} ролика в очередь",
+      many: "{count} роликов в очередь",
+      other: "{count} ролика в очередь",
+    },
+    added: {
+      one: "{count} ролик добавлен в очередь",
+      few: "{count} ролика добавлено в очередь",
+      many: "{count} роликов добавлено в очередь",
+      other: "{count} ролика добавлено в очередь",
+    },
+    allDownloaded: "Все они уже скачаны в формате по умолчанию.",
   },
   playlist: {
     count: {

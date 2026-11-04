@@ -19,6 +19,7 @@
   import { ACTIVE_STATUSES } from "$lib/types";
   import Dialog from "$lib/components/Dialog.svelte";
   import DownloadTab from "$lib/components/DownloadTab.svelte";
+  import FavoritesTab from "$lib/components/FavoritesTab.svelte";
   import HistoryTab from "$lib/components/HistoryTab.svelte";
   import Icon, { type IconName } from "$lib/components/Icon.svelte";
   import SearchTab from "$lib/components/SearchTab.svelte";
@@ -29,6 +30,7 @@
   const TABS: { id: Tab; icon: IconName }[] = [
     { id: "download", icon: "download" },
     { id: "search", icon: "search" },
+    { id: "favorites", icon: "star" },
     { id: "history", icon: "history" },
     { id: "settings", icon: "settings" },
   ];
@@ -53,6 +55,7 @@
       applySettings(await api.settingsGet());
       const status = await api.componentsStatus();
       app.queue = await api.queueList();
+      app.favorites = await api.favoritesList();
       phase = status.every((s) => s.installed) ? "ready" : "setup";
     } catch (err) {
       startupError = errorMessage(err, t);
@@ -136,6 +139,7 @@
       <!-- Tabs stay mounted so a half-filled link or a scroll position survives switching. -->
       <div hidden={app.tab !== "download"}><DownloadTab /></div>
       <div hidden={app.tab !== "search"}><SearchTab /></div>
+      <div hidden={app.tab !== "favorites"}><FavoritesTab /></div>
       <div hidden={app.tab !== "history"}><HistoryTab /></div>
       {#if app.tab === "settings"}<SettingsTab />{/if}
     </main>
@@ -246,9 +250,17 @@
     padding: 20px 20px max(20px, env(safe-area-inset-bottom));
   }
 
+  /* Phones: tabs become a bottom navigation bar, as Android apps have. */
   @media (max-width: 600px) {
     header {
-      padding: max(6px, env(safe-area-inset-top)) 8px 6px;
+      position: fixed;
+      top: auto;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 4px 4px max(4px, env(safe-area-inset-bottom));
+      border-top: 1px solid var(--border);
+      border-bottom: none;
     }
 
     .brand {
@@ -257,17 +269,35 @@
 
     .tabs {
       flex: 1;
+      gap: 2px;
     }
 
     .tabs button {
+      position: relative;
       flex: 1;
+      flex-direction: column;
       justify-content: center;
-      height: 40px;
-      padding: 0 6px;
+      gap: 2px;
+      height: 56px;
+      padding: 0 2px;
+      font-size: 11px;
+      line-height: 1.2;
+    }
+
+    .tabs button :global(svg) {
+      width: 22px;
+      height: 22px;
+    }
+
+    .count {
+      position: absolute;
+      top: 4px;
+      left: calc(50% + 6px);
     }
 
     main {
-      padding: 12px 12px max(12px, env(safe-area-inset-bottom));
+      padding: max(12px, env(safe-area-inset-top)) 12px
+        calc(76px + env(safe-area-inset-bottom));
     }
   }
 
@@ -305,5 +335,12 @@
   .toast.error {
     background: var(--danger);
     color: #fff;
+  }
+
+  /* Above the bottom navigation on phones (after .toast, so it wins). */
+  @media (max-width: 600px) {
+    .toast {
+      bottom: calc(76px + env(safe-area-inset-bottom));
+    }
   }
 </style>

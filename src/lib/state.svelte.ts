@@ -5,10 +5,10 @@ import { errorMessage } from "./errors";
 import { errorReport } from "./report";
 import type { Lang } from "./format";
 import { resolveLanguage, translate, type Params } from "./i18n";
-import type { QueueEntry, Settings } from "./types";
+import type { Favorite, QueueEntry, Settings } from "./types";
 
 /** App-wide reactive state shared by the tabs. */
-export type Tab = "download" | "search" | "history" | "settings";
+export type Tab = "download" | "search" | "favorites" | "history" | "settings";
 
 export const app = $state({
   lang: "en" as Lang,
@@ -17,6 +17,8 @@ export const app = $state({
   pendingUrl: null as string | null,
   settings: null as Settings | null,
   queue: [] as QueueEntry[],
+  /** Saved videos, newest first. */
+  favorites: [] as Favorite[],
   /** Bumped when a download finishes, so the history reloads. */
   historyVersion: 0,
   toast: null as { text: string; error: boolean } | null,

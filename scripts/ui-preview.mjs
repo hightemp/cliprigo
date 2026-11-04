@@ -200,6 +200,7 @@ const ready = (language, extra = {}) => ({
   queue_list: [],
   history_list: [],
   find_duplicates: [],
+  favorites_list: [],
   url_inspect: { normalized: VIDEO.url, isYoutube: true, singleVideo: true },
   ...extra,
 });
@@ -212,9 +213,23 @@ const SEARCH_TITLES = [
   "Alpine lakes from a drone",
 ];
 
+/** A search result as saved to Favorites `ago` seconds before NOW. */
+const favorite = (entry, ago) => ({
+  id: entry.id,
+  url: entry.url,
+  title: entry.title,
+  uploader: entry.uploader,
+  duration: entry.duration,
+  thumbnail: entry.thumbnail,
+  viewCount: entry.viewCount,
+  addedAt: NOW - ago,
+});
+
 /** The search result row with exactly this title. */
 const resultRow = (page, title) =>
-  page.locator("li").filter({ has: page.getByText(title, { exact: true }) });
+  page
+    .locator("li.card:visible")
+    .filter({ has: page.getByText(title, { exact: true }) });
 
 /** One page of search results: `count` videos from `start`. */
 function searchPage(start, count, overrides = {}) {
@@ -1161,6 +1176,78 @@ const scenarios = [
         await tip.waitFor({ state: "hidden" });
       }
     },
+  },
+  {
+    name: "28-favorites",
+    theme: "light",
+    responses: ready("ru", {
+      favorites_list: [
+        favorite(SEARCH_RESULTS[5], 200),
+        favorite(SEARCH_RESULTS[6], 100),
+      ],
+      youtube_search: { entries: SEARCH_RESULTS, hasMore: true },
+      favorites_add: favorite(SEARCH_RESULTS[0], 300),
+      queue_add: [record(12)],
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Поиск" }).click();
+      await page.getByLabel("Поиск на YouTube").fill("timelapse");
+      await page.keyboard.press("Enter");
+      // Saved videos show as saved in the results too.
+      const saved = resultRow(page, SEARCH_RESULTS[5].title).getByRole(
+        "button",
+        {
+          name: "В избранное",
+        },
+      );
+      check.equal(
+        await saved.getAttribute("aria-pressed"),
+        "true",
+        "saved star",
+      );
+      const star = resultRow(page, SEARCH_RESULTS[0].title).getByRole(
+        "button",
+        {
+          name: "В избранное",
+        },
+      );
+      check.equal(await star.getAttribute("aria-pressed"), "false", "new star");
+      await star.click();
+      const add = await check.call("favorites_add");
+      check.equal(add.args.video.id, SEARCH_RESULTS[0].id);
+      check.equal(add.args.video.title, SEARCH_RESULTS[0].title);
+      check.equal(await star.getAttribute("aria-pressed"), "true", "starred");
+
+      await page.getByRole("tab", { name: "Избранное" }).click();
+      check.equal(
+        await page.locator("li.card:visible").count(),
+        3,
+        "three saved",
+      );
+      await page.screenshot({ path: `${OUT}/28-favorites.png` });
+
+      const filter = page.getByLabel("Найти в избранном");
+      await filter.fill("rocky");
+      check.equal(await page.locator("li.card:visible").count(), 1, "filtered");
+      await filter.fill("");
+
+      await page.getByRole("button", { name: "Все в очередь" }).click();
+      const queued = await check.call("queue_add");
+      check.equal(queued.args.items.length, 3);
+
+      // Unstarring removes it from the list.
+      await resultRow(page, SEARCH_RESULTS[6].title)
+        .getByRole("button", { name: "В избранное" })
+        .click();
+      const removed = await check.call("favorites_remove");
+      check.equal(removed.args.id, SEARCH_RESULTS[6].id);
+      check.equal(
+        await page.locator("li.card:visible").count(),
+        2,
+        "after remove",
+      );
+    },
+    noFinalShot: true,
   },
   {
     name: "25-android-share",

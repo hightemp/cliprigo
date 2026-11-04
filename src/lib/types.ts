@@ -172,6 +172,20 @@ export interface PlaylistEntry {
   live: boolean;
 }
 
+/** A video saved to Favorites; see src-tauri/src/db/favorites.rs. */
+export interface Favorite {
+  id: string;
+  url: string;
+  title: string;
+  uploader: string | null;
+  duration: number | null;
+  thumbnail: string | null;
+  viewCount: number | null;
+  addedAt: number;
+}
+
+export type FavoriteInput = Omit<Favorite, "addedAt">;
+
 /** See src-tauri/src/ytdlp/search.rs. */
 export type SearchFeature = "hd" | "4k" | "hdr" | "subtitles";
 

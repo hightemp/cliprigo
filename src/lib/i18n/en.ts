@@ -9,6 +9,7 @@ export const en = {
   tabs: {
     download: "Download",
     search: "Search",
+    favorites: "Favorites",
     history: "History",
     settings: "Settings",
   },
@@ -115,6 +116,23 @@ export const en = {
         subtitles: "Subtitles",
       },
     },
+  },
+  favorites: {
+    save: "Save to Favorites",
+    saved: "In Favorites",
+    empty:
+      "Nothing saved yet. Star videos in search to come back to them later.",
+    filter: "Find in Favorites",
+    queueAll: "Queue all",
+    queueShown: {
+      one: "Queue {count} video",
+      other: "Queue {count} videos",
+    },
+    added: {
+      one: "{count} video added to the queue",
+      other: "{count} videos added to the queue",
+    },
+    allDownloaded: "All of them are already downloaded in the default format.",
   },
   playlist: {
     count: {

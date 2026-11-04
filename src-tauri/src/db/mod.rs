@@ -1,4 +1,5 @@
 mod downloads;
+mod favorites;
 mod migrations;
 mod settings;
 
@@ -11,6 +12,7 @@ use rusqlite::functions::FunctionFlags;
 use crate::error::AppResult;
 
 pub use downloads::{DownloadRecord, DownloadStatus, HistoryQuery, NewDownload};
+pub use favorites::{Favorite, NewFavorite};
 pub use settings::Settings;
 
 /// SQLite storage for history and settings. Access is serialized through a mutex:

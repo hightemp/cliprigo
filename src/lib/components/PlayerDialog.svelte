@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api } from "$lib/api";
   import { app, openInBrowser, t, toastError } from "$lib/state.svelte";
+  import { isFavorite, toggleFavorite } from "$lib/videos.svelte";
   import type { PlaylistEntry } from "$lib/types";
   import Dialog from "./Dialog.svelte";
   import Icon from "./Icon.svelte";
@@ -53,6 +54,14 @@
     <button class="btn" onclick={() => openInBrowser(entry.url)}>
       <Icon name="external" size={16} />
       {t("search.openOnYoutube")}
+    </button>
+    <button
+      class="btn"
+      aria-pressed={isFavorite(entry.id)}
+      onclick={() => toggleFavorite(entry)}
+    >
+      <Icon name="star" size={16} />
+      {isFavorite(entry.id) ? t("favorites.saved") : t("favorites.save")}
     </button>
     <span class="spacer"></span>
     <button class="btn" onclick={onclose}>{t("common.close")}</button>
