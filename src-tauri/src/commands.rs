@@ -8,12 +8,12 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::components::{Component, ComponentManager, ComponentStatus, Progress, UpdateInfo};
 use crate::db::{
-    Db, DownloadRecord, DownloadStatus, Favorite, HistoryQuery, NewFavorite, Settings,
+    Db, DownloadRecord, DownloadStatus, Favorite, HistoryQuery, NewFavorite, SearchRecord, Settings,
 };
 use crate::error::{AppError, AppResult};
 use crate::queue::{Queue, QueueEntry, QueueItemInput};
 use crate::ytdlp;
-use crate::ytdlp::probe::{ProbeResult, SearchPage};
+use crate::ytdlp::probe::{PlaylistEntry, ProbeResult, SearchPage};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -177,6 +177,7 @@ pub async fn video_probe(
 #[tauri::command]
 pub async fn youtube_search(
     manager: State<'_, Arc<ComponentManager>>,
+    db: State<'_, Db>,
     query: String,
     filters: ytdlp::search::SearchFilters,
     page: u32,
@@ -189,7 +190,36 @@ pub async fn youtube_search(
         });
     }
     let tools = manager.tools()?;
-    ytdlp::runner::search(&tools, query, &filters, page).await
+    let found = ytdlp::runner::search(&tools, query, &filters, page).await?;
+    if db.load_settings()?.remember_searches {
+        // The history is a convenience: failing to save it must not fail the search.
+        if let Err(e) = db.record_search(query, &filters, page, &found.entries) {
+            tracing::warn!(error = %e, "could not save the search to history");
+        }
+    }
+    Ok(found)
+}
+
+/// Past searches, newest first.
+#[tauri::command]
+pub fn search_history_list(db: State<'_, Db>) -> AppResult<Vec<SearchRecord>> {
+    db.list_searches()
+}
+
+/// The results saved for a past search.
+#[tauri::command]
+pub fn search_history_results(db: State<'_, Db>, id: i64) -> AppResult<Vec<PlaylistEntry>> {
+    db.search_results(id)
+}
+
+#[tauri::command]
+pub fn search_history_remove(db: State<'_, Db>, id: i64) -> AppResult<()> {
+    db.remove_search(id).map(|_| ())
+}
+
+#[tauri::command]
+pub fn search_history_clear(db: State<'_, Db>) -> AppResult<()> {
+    db.clear_searches()
 }
 
 /// Address of a local page that plays `video_id` inside the app (see player.rs).

@@ -69,6 +69,7 @@ function record(id, overrides = {}) {
 }
 
 const settings = (language) => ({
+  rememberSearches: true,
   downloadDir: "/home/user/Downloads",
   defaultFormat: "video",
   defaultQuality: null,
@@ -201,6 +202,7 @@ const ready = (language, extra = {}) => ({
   history_list: [],
   find_duplicates: [],
   favorites_list: [],
+  search_history_list: [],
   url_inspect: { normalized: VIDEO.url, isYoutube: true, singleVideo: true },
   ...extra,
 });
@@ -251,6 +253,27 @@ function searchPage(start, count, overrides = {}) {
 }
 
 const SEARCH_RESULTS = searchPage(0, 20, { 3: { live: true, duration: null } });
+
+/** A past search `ago` seconds before NOW. */
+const pastSearch = (id, query, ago, filters = {}, resultCount = 20) => ({
+  id,
+  query,
+  filters: {
+    uploadDate: null,
+    length: null,
+    features: [],
+    sort: "relevance",
+    ...filters,
+  },
+  searchedAt: NOW - ago,
+  resultCount,
+});
+
+const SEARCH_HISTORY = [
+  pastSearch(3, "горы таймлапс", 600, { features: ["4k"], sort: "views" }),
+  pastSearch(2, "котики смешные", 86400),
+  pastSearch(1, "lofi для работы", 3 * 86400, { length: "long" }, 40),
+];
 
 const scenarios = [
   {
@@ -1292,6 +1315,215 @@ const scenarios = [
     },
   },
   {
+    name: "31-search-suggestions",
+    theme: "light",
+    responses: ready("ru", {
+      search_history_list: SEARCH_HISTORY,
+      youtube_search: { entries: SEARCH_RESULTS, hasMore: true },
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Поиск" }).click();
+      // Before the first search the latest queries are one tap away.
+      const recent = page.getByRole("list", { name: "Недавние запросы" });
+      check.equal(
+        (await recent.getByRole("button").allTextContents()).map((s) =>
+          s.trim(),
+        ),
+        SEARCH_HISTORY.map((s) => s.query),
+        "recent chips",
+      );
+
+      const field = page.getByRole("combobox", { name: "Поиск на YouTube" });
+      await field.click();
+      const list = page.getByRole("listbox");
+      check.equal(await list.getByRole("option").count(), 3, "on focus");
+      check.equal(await field.getAttribute("aria-expanded"), "true");
+      await page.screenshot({ path: `${OUT}/31-search-suggestions.png` });
+
+      await field.fill("КОТ");
+      check.equal(
+        (await list.getByRole("option").allTextContents()).map((s) => s.trim()),
+        ["котики смешные"],
+        "filtered",
+      );
+      await page.keyboard.press("ArrowDown");
+      check.equal(
+        await field.getAttribute("aria-activedescendant"),
+        await list.getByRole("option").first().getAttribute("id"),
+        "active option",
+      );
+      await page.keyboard.press("Enter");
+      const searched = await check.call("youtube_search");
+      check.equal(searched.args.query, "котики смешные");
+      check.equal(await field.inputValue(), "котики смешные");
+      check.equal(await field.getAttribute("aria-expanded"), "false");
+      // The list reloads to show the new search on top.
+      await page.waitForFunction(
+        () =>
+          window.__calls.filter((c) => c.cmd === "search_history_list")
+            .length >= 2,
+      );
+
+      // Esc closes the list; Shift+Delete removes the active suggestion.
+      await field.fill("");
+      check.equal(await list.getByRole("option").count(), 3, "again");
+      await page.keyboard.press("Escape");
+      check.equal(await field.getAttribute("aria-expanded"), "false", "esc");
+      await page.keyboard.press("ArrowDown");
+      await page.keyboard.press("ArrowDown");
+      await page.keyboard.press("Shift+Delete");
+      const removed = await check.call("search_history_remove");
+      check.equal(removed.args.id, SEARCH_HISTORY[1].id);
+      check.equal(await list.getByRole("option").count(), 2, "removed");
+
+      // A click on a suggestion searches it too.
+      await list.getByRole("option", { name: "lofi для работы" }).click();
+      check.equal(
+        (await check.call("youtube_search")).args.query,
+        "lofi для работы",
+      );
+    },
+    noFinalShot: true,
+  },
+  {
+    name: "32-search-history",
+    theme: "light",
+    responses: ready("ru", {
+      search_history_list: SEARCH_HISTORY,
+      search_history_results: searchPage(0, 6),
+      youtube_search: { entries: SEARCH_RESULTS, hasMore: true },
+      queue_add: [record(12)],
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Поиск" }).click();
+      await page.getByRole("button", { name: "История", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "История поиска" });
+      const queries = dialog.getByRole("list", { name: "Запросы" });
+      check.equal(await queries.getByRole("listitem").count(), 3, "queries");
+      await check.text("4K · По популярности");
+
+      await queries.getByRole("button", { name: /котики смешные/ }).click();
+      check.equal((await check.call("search_history_results")).args.id, 2);
+      await resultRow(page, SEARCH_RESULTS[1].title).waitFor();
+      check.equal(
+        await dialog.locator("li.card:visible").count(),
+        6,
+        "saved results",
+      );
+      if (MOBILE) {
+        // One pane at a time on a phone: Back returns to the queries.
+        await dialog.getByRole("button", { name: "Назад" }).click();
+        await queries.getByRole("button", { name: /горы таймлапс/ }).click();
+      } else {
+        await queries.getByRole("button", { name: /горы таймлапс/ }).click();
+      }
+      check.equal((await check.call("search_history_results")).args.id, 3);
+      await page.screenshot({ path: `${OUT}/32-search-history.png` });
+
+      await resultRow(page, SEARCH_RESULTS[0].title)
+        .getByRole("button", { name: "В очередь" })
+        .click();
+      check.equal(
+        (await check.call("queue_add")).args.items[0].url,
+        SEARCH_RESULTS[0].url,
+      );
+
+      // "Search again" runs it with the saved filters and closes the dialog.
+      await dialog.getByRole("button", { name: "Искать снова" }).click();
+      const again = await check.call("youtube_search");
+      check.equal(again.args.query, "горы таймлапс");
+      check.equal(again.args.filters.features, ["4k"]);
+      check.equal(again.args.filters.sort, "views");
+      check.equal(await dialog.count(), 0, "closed");
+      check.equal(
+        await page
+          .getByRole("combobox", { name: "Поиск на YouTube" })
+          .inputValue(),
+        "горы таймлапс",
+      );
+    },
+    noFinalShot: true,
+  },
+  {
+    name: "33-search-history-edit",
+    responses: ready("ru", {
+      search_history_list: SEARCH_HISTORY,
+      search_history_results: searchPage(0, 3),
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Поиск" }).click();
+      await page.getByRole("button", { name: "История", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "История поиска" });
+      const queries = dialog.getByRole("list", { name: "Запросы" });
+      await queries
+        .getByRole("listitem")
+        .filter({ hasText: "котики смешные" })
+        .getByRole("button", { name: "Удалить из истории" })
+        .click();
+      check.equal((await check.call("search_history_remove")).args.id, 2);
+      check.equal(await queries.getByRole("listitem").count(), 2, "removed");
+
+      await dialog.getByRole("button", { name: "Очистить историю" }).click();
+      await check.call("search_history_clear");
+      await check.text("Здесь появятся ваши поиски");
+      await dialog.getByRole("button", { name: "Закрыть" }).click();
+      check.equal(
+        await page.getByRole("list", { name: "Недавние запросы" }).count(),
+        0,
+        "no chips",
+      );
+    },
+  },
+  {
+    name: "34-settings-search-history",
+    responses: ready("ru", {
+      search_history_list: SEARCH_HISTORY,
+      settings_set: { ...settings("ru"), rememberSearches: false },
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Настройки" }).click();
+      const remember = page.getByRole("checkbox", {
+        name: "Запоминать поисковые запросы",
+      });
+      check.equal(await remember.isChecked(), true, "on by default");
+      await remember.uncheck();
+      const saved = await check.call("settings_set");
+      check.equal(saved.args.settings.rememberSearches, false);
+      await page
+        .getByRole("button", { name: "Очистить историю поиска" })
+        .click();
+      await check.call("search_history_clear");
+      await check.text("История поиска очищена");
+    },
+  },
+  {
+    // English screenshot of the search history for the README and the site.
+    name: "35-search-history-en",
+    theme: "light",
+    responses: ready("en", {
+      search_history_list: [
+        pastSearch(3, "mountain timelapse", 600, {
+          features: ["4k"],
+          sort: "views",
+        }),
+        pastSearch(2, "northern lights", 86400, { uploadDate: "month" }),
+        pastSearch(1, "drone footage alps", 3 * 86400, { length: "long" }, 40),
+      ],
+      search_history_results: SEARCH_RESULTS.slice(0, 8),
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Search" }).click();
+      await page.getByRole("button", { name: "History", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Search history" });
+      await dialog
+        .getByRole("list", { name: "Searches" })
+        .getByRole("button", { name: /mountain timelapse/ })
+        .click();
+      await resultRow(page, SEARCH_RESULTS[0].title).waitFor();
+      check.equal(await dialog.locator("li.card:visible").count(), 8);
+    },
+  },
+  {
     name: "25-android-share",
     theme: "light",
     responses: ready("ru", {
@@ -1407,6 +1639,7 @@ const server = spawn(
 );
 
 let failed = 0;
+let ran = 0;
 const browser = await chromium
   .launch({ executablePath: CHROME, args: ["--no-proxy-server"] })
   .catch((e) => {
@@ -1415,7 +1648,10 @@ const browser = await chromium
   });
 try {
   await waitForServer(BASE);
+  const only = process.env.PREVIEW_ONLY;
   for (const scenario of scenarios) {
+    if (only && !scenario.name.startsWith(only)) continue;
+    ran++;
     const context = await browser.newContext({
       ...VIEWPORT,
       colorScheme: THEME ?? scenario.theme,
@@ -1494,7 +1730,5 @@ try {
   await browser.close();
   server.kill();
 }
-console.log(
-  `${scenarios.length - failed}/${scenarios.length} scenarios passed, screenshots in ${OUT}`,
-);
+console.log(`${ran - failed}/${ran} scenarios passed, screenshots in ${OUT}`);
 process.exit(failed ? 1 : 0);

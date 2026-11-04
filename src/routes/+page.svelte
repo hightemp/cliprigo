@@ -12,6 +12,7 @@
     app,
     applySettings,
     openInDownload,
+    reloadSearchHistory,
     t,
     toast,
     type Tab,
@@ -56,6 +57,7 @@
       const status = await api.componentsStatus();
       app.queue = await api.queueList();
       app.favorites = await api.favoritesList();
+      await reloadSearchHistory();
       phase = status.every((s) => s.installed) ? "ready" : "setup";
     } catch (err) {
       startupError = errorMessage(err, t);

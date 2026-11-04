@@ -2,9 +2,9 @@
 //! the YouTube results page, whose `sp` parameter carries the filters as a base64
 //! protobuf message: field 1 is the order, field 2 the filters.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchFilters {
     #[serde(default)]
@@ -17,7 +17,7 @@ pub struct SearchFilters {
     pub sort: Sort,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UploadDate {
     Hour,
@@ -27,7 +27,7 @@ pub enum UploadDate {
     Year,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Length {
     /// Under 4 minutes.
@@ -38,7 +38,7 @@ pub enum Length {
     Long,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Feature {
     Hd,
@@ -49,7 +49,7 @@ pub enum Feature {
 }
 
 /// YouTube no longer honors "by upload date" or "by rating" here.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Sort {
     #[default]

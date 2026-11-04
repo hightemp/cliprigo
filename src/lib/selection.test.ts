@@ -186,6 +186,7 @@ describe("defaultFormat", () => {
     language: "system",
     autoUpdateYtdlp: true,
     proxy: "",
+    rememberSearches: true,
   } as const;
 
   it("follows the settings", () => {

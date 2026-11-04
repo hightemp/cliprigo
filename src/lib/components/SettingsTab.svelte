@@ -20,6 +20,7 @@
     applySettings,
     copyDetails,
     t,
+    toast,
     toastError,
   } from "$lib/state.svelte";
   import { CODECS } from "$lib/types";
@@ -73,6 +74,16 @@
     ext: "mp4",
   });
   const preview = (template: string) => previewName(template, sample, " 720p");
+
+  async function clearSearches() {
+    try {
+      await api.searchHistoryClear();
+      app.searchHistory = [];
+      toast(t("settings.searchesCleared"));
+    } catch (err) {
+      toastError(err);
+    }
+  }
 
   function setTemplate(template: string) {
     draft.filenameTemplate = template;
@@ -366,6 +377,25 @@
       <span>{t("settings.autoUpdate")}</span>
     </label>
 
+    <div class="row searches">
+      <label class="check">
+        <input
+          type="checkbox"
+          bind:checked={draft.rememberSearches}
+          onchange={save}
+        />
+        <span>{t("settings.rememberSearches")}</span>
+      </label>
+      <button
+        class="btn"
+        disabled={app.searchHistory.length === 0}
+        onclick={clearSearches}
+      >
+        <Icon name="trash" size={16} />
+        {t("settings.clearSearches")}
+      </button>
+    </div>
+
     <div
       class="saved muted small"
       class:visible={savedVisible}
@@ -526,9 +556,16 @@
     color: var(--success);
   }
 
-  .row.check {
+  .row.check,
+  .searches .check {
+    display: flex;
+    align-items: center;
     justify-content: flex-start;
     gap: 8px;
+  }
+
+  .searches {
+    flex-wrap: wrap;
   }
 
   .row :global(.select) {

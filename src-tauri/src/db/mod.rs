@@ -1,6 +1,7 @@
 mod downloads;
 mod favorites;
 mod migrations;
+mod search_history;
 mod settings;
 
 use std::path::Path;
@@ -13,6 +14,7 @@ use crate::error::AppResult;
 
 pub use downloads::{DownloadRecord, DownloadStatus, HistoryQuery, NewDownload};
 pub use favorites::{Favorite, NewFavorite};
+pub use search_history::SearchRecord;
 pub use settings::Settings;
 
 /// SQLite storage for history and settings. Access is serialized through a mutex:

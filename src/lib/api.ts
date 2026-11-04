@@ -9,6 +9,7 @@ import type {
   FavoriteInput,
   HistoryItem,
   HistoryQuery,
+  PlaylistEntry,
   ProbeResult,
   ProxyCheck,
   QueueEntry,
@@ -16,6 +17,7 @@ import type {
   QueueItemInput,
   SearchFilters,
   SearchPage,
+  SearchRecord,
   Settings,
   UpdateInfo,
   UrlInfo,
@@ -56,6 +58,12 @@ export const api = {
   videoProbe: (url: string) => invoke<ProbeResult>("video_probe", { url }),
   youtubeSearch: (query: string, filters: SearchFilters, page: number) =>
     invoke<SearchPage>("youtube_search", { query, filters, page }),
+  searchHistoryList: () => invoke<SearchRecord[]>("search_history_list"),
+  searchHistoryResults: (id: number) =>
+    invoke<PlaylistEntry[]>("search_history_results", { id }),
+  searchHistoryRemove: (id: number) =>
+    invoke<void>("search_history_remove", { id }),
+  searchHistoryClear: () => invoke<void>("search_history_clear"),
   playerUrl: (videoId: string, lang: string) =>
     invoke<string>("player_url", { videoId, lang }),
 

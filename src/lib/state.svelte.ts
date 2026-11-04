@@ -5,7 +5,7 @@ import { errorMessage } from "./errors";
 import { errorReport } from "./report";
 import type { Lang } from "./format";
 import { resolveLanguage, translate, type Params } from "./i18n";
-import type { Favorite, QueueEntry, Settings } from "./types";
+import type { Favorite, QueueEntry, SearchRecord, Settings } from "./types";
 
 /** App-wide reactive state shared by the tabs. */
 export type Tab = "download" | "search" | "favorites" | "history" | "settings";
@@ -19,10 +19,19 @@ export const app = $state({
   queue: [] as QueueEntry[],
   /** Saved videos, newest first. */
   favorites: [] as Favorite[],
+  /** Past searches, newest first. */
+  searchHistory: [] as SearchRecord[],
   /** Bumped when a download finishes, so the history reloads. */
   historyVersion: 0,
   toast: null as { text: string; error: boolean } | null,
 });
+
+/** Rereads the search history; it is a convenience, so a failure leaves it as is. */
+export async function reloadSearchHistory() {
+  app.searchHistory = await api
+    .searchHistoryList()
+    .catch(() => app.searchHistory);
+}
 
 /** Reactive translation: templates re-render when the language changes. */
 export function t(key: string, params?: Params): string {

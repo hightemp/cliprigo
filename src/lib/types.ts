@@ -105,6 +105,8 @@ export interface Settings {
   autoUpdateYtdlp: boolean;
   /** Empty: system settings and environment. */
   proxy: string;
+  /** Keep searches and their results in the search history. */
+  rememberSearches: boolean;
 }
 
 export type ProxyFailure =
@@ -195,6 +197,16 @@ export interface SearchFilters {
   length: "short" | "medium" | "long" | null;
   features: SearchFeature[];
   sort: "relevance" | "views";
+}
+
+/** A past search; see src-tauri/src/db/search_history.rs. */
+export interface SearchRecord {
+  id: number;
+  query: string;
+  /** Of the last run, which the saved results come from. */
+  filters: SearchFilters;
+  searchedAt: number;
+  resultCount: number;
 }
 
 export interface SearchPage {

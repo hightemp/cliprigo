@@ -25,6 +25,8 @@ pub struct Settings {
     pub auto_update_ytdlp: bool,
     /// Proxy for yt-dlp and the app's own downloads; empty uses system settings.
     pub proxy: String,
+    /// Keep searches and their results in the search history.
+    pub remember_searches: bool,
 }
 
 impl Default for Settings {
@@ -46,6 +48,7 @@ impl Default for Settings {
             language: "system".into(),
             auto_update_ytdlp: true,
             proxy: String::new(),
+            remember_searches: true,
         }
     }
 }
@@ -187,6 +190,18 @@ mod tests {
             assert_eq!(saved.default_codec, stored, "{input}");
             assert_eq!(db.load_settings().unwrap().default_codec, stored);
         }
+    }
+
+    #[test]
+    fn remember_searches_defaults_on_and_roundtrips() {
+        let db = Db::open_in_memory().unwrap();
+        assert!(db.load_settings().unwrap().remember_searches);
+        db.save_settings(Settings {
+            remember_searches: false,
+            ..Default::default()
+        })
+        .unwrap();
+        assert!(!db.load_settings().unwrap().remember_searches);
     }
 
     #[test]

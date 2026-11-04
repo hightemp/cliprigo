@@ -52,6 +52,31 @@ const MIGRATIONS: &[&str] = &[
         added_at      INTEGER NOT NULL
     );
     "#,
+    // 5: search history with the results of the last search for each query
+    r#"
+    CREATE TABLE searches (
+        id           INTEGER PRIMARY KEY,
+        query        TEXT NOT NULL,
+        -- The query as compared: trimmed, single spaces, lower case.
+        query_key    TEXT NOT NULL UNIQUE,
+        -- SearchFilters as JSON.
+        filters      TEXT NOT NULL,
+        searched_at  INTEGER NOT NULL
+    );
+    CREATE TABLE search_results (
+        search_id     INTEGER NOT NULL REFERENCES searches(id) ON DELETE CASCADE,
+        position      INTEGER NOT NULL,
+        video_id      TEXT NOT NULL,
+        url           TEXT NOT NULL,
+        title         TEXT NOT NULL,
+        uploader      TEXT,
+        duration      INTEGER,
+        thumbnail_url TEXT,
+        view_count    INTEGER,
+        live          INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (search_id, video_id)
+    );
+    "#,
 ];
 
 pub fn run(conn: &mut Connection) -> AppResult<()> {

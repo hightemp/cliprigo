@@ -2,17 +2,31 @@
   import { api } from "$lib/api";
   import { errorMessage } from "$lib/errors";
   import { appendPage } from "$lib/history";
-  import { NO_FILTERS, activeFilters, toggleFeature } from "$lib/search";
-  import { copyDetails, openInDownload, t } from "$lib/state.svelte";
+  import {
+    NO_FILTERS,
+    activeFilters,
+    suggestQueries,
+    toggleFeature,
+  } from "$lib/search";
+  import {
+    app,
+    copyDetails,
+    openInDownload,
+    reloadSearchHistory,
+    t,
+    toastError,
+  } from "$lib/state.svelte";
   import type {
     DownloadRecord,
     PlaylistEntry,
     SearchFeature,
     SearchFilters,
+    SearchRecord,
   } from "$lib/types";
   import { queueVideos, videoMeta, videoStatus } from "$lib/videos.svelte";
   import Icon from "./Icon.svelte";
   import PlayerDialog from "./PlayerDialog.svelte";
+  import SearchHistoryDialog from "./SearchHistoryDialog.svelte";
   import SearchField from "./SearchField.svelte";
   import Select from "./Select.svelte";
   import VideoRow from "./VideoRow.svelte";
@@ -32,6 +46,35 @@
   let showFilters = $state(false);
   const filterCount = $derived(activeFilters(filters));
   const FEATURES: SearchFeature[] = ["hd", "4k", "hdr", "subtitles"];
+  let showHistory = $state(false);
+  const suggestions = $derived(
+    suggestQueries(app.searchHistory, query).map((s) => s.query),
+  );
+  const recent = $derived(app.searchHistory.slice(0, 8));
+
+  /** Searches `text` from the history or a suggestion, with `with` filters. */
+  function searchFor(text: string, withFilters?: SearchFilters) {
+    query = text;
+    if (withFilters)
+      filters = { ...withFilters, features: [...withFilters.features] };
+    search(false);
+  }
+
+  async function forget(text: string) {
+    const found = app.searchHistory.find((s) => s.query === text);
+    if (!found) return;
+    try {
+      await api.searchHistoryRemove(found.id);
+      app.searchHistory = app.searchHistory.filter((s) => s.id !== found.id);
+    } catch (err) {
+      toastError(err);
+    }
+  }
+
+  function repeat(search: SearchRecord) {
+    showHistory = false;
+    searchFor(search.query, search.filters);
+  }
 
   /** A changed filter searches the last text again at once. */
   function setFilters(next: SearchFilters) {
@@ -69,6 +112,7 @@
       results = shown;
       existing = records;
       hasMore = found.hasMore;
+      if (!next) reloadSearchHistory();
     } catch (err) {
       if (id === requestId) {
         error = errorMessage(err, t);
@@ -102,6 +146,9 @@
       bind:value={query}
       placeholder={t("search.placeholder")}
       enterkeyhint="search"
+      {suggestions}
+      onpick={(text) => searchFor(text)}
+      onremove={forget}
     />
     <button type="submit" class="btn primary" disabled={!query.trim()}>
       {t("search.submit")}
@@ -117,6 +164,15 @@
       <Icon name="filter" size={16} />
       {t("search.filters.button")}
       {#if filterCount > 0}<span class="count">{filterCount}</span>{/if}
+    </button>
+    <button
+      type="button"
+      class="btn"
+      data-tip={t("search.history.title")}
+      onclick={() => (showHistory = true)}
+    >
+      <Icon name="history" size={16} />
+      {t("search.history.button")}
     </button>
   </form>
 
@@ -231,9 +287,31 @@
   {:else if searched && !error}
     <p class="muted empty">{t("search.empty")}</p>
   {:else if !error}
+    {#if recent.length > 0}
+      <ul class="recent" aria-label={t("search.history.recent")}>
+        {#each recent as past (past.id)}
+          <li>
+            <button
+              class="chip"
+              onclick={() => searchFor(past.query, past.filters)}
+            >
+              <Icon name="history" size={14} />
+              {past.query}
+            </button>
+          </li>
+        {/each}
+      </ul>
+    {/if}
     <p class="muted empty">{t("search.hint")}</p>
   {/if}
 </div>
+
+{#if showHistory}
+  <SearchHistoryDialog
+    onclose={() => (showHistory = false)}
+    onrepeat={repeat}
+  />
+{/if}
 
 {#if watching}
   {@const entry = watching}
@@ -336,6 +414,29 @@
     .chip {
       min-height: 44px;
     }
+  }
+
+  .recent {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    padding-top: 24px;
+  }
+
+  .recent .chip {
+    max-width: 100%;
+    overflow: hidden;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .recent .chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
   }
 
   .reset {
