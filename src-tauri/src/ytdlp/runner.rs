@@ -969,13 +969,10 @@ mod live_tests {
         })
         .await
         {
-            let views: Vec<_> = found
-                .entries
-                .iter()
-                .filter_map(|e| e.view_count)
-                .take(3)
-                .collect();
-            assert!(views.iter().all(|v| *v > 10_000_000), "{views:?}");
+            // "Popularity" is YouTube's own order, not strictly by views: only the
+            // top result is sure to be a hit.
+            let views: Vec<_> = found.entries.iter().filter_map(|e| e.view_count).collect();
+            assert!(views.first().is_some_and(|v| *v > 10_000_000), "{views:?}");
         }
     }
 
