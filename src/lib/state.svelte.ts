@@ -65,7 +65,17 @@ export function openInDownload(url: string) {
   app.tab = "download";
 }
 
-/** Opens a YouTube page: in the app's YouTube window, or the YouTube app on Android. */
+/** Opens a link in the system browser, or the app that handles it (YouTube on Android). */
+export async function openInBrowser(url: string) {
+  try {
+    await openUrl(url);
+  } catch (err) {
+    toastError(err);
+  }
+}
+
+/** Browses YouTube in the app's YouTube window, which has a download button; on
+ * Android, where there is no such window, in the YouTube app. */
 export async function openYoutube(url: string) {
   try {
     if (isAndroid) await openUrl(url);

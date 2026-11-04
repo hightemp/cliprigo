@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api } from "$lib/api";
-  import { app, openYoutube, t, toastError } from "$lib/state.svelte";
+  import { app, openInBrowser, t, toastError } from "$lib/state.svelte";
   import type { PlaylistEntry } from "$lib/types";
   import Dialog from "./Dialog.svelte";
   import Icon from "./Icon.svelte";
@@ -50,7 +50,7 @@
   </div>
   <p class="meta">{meta}</p>
   {#snippet actions()}
-    <button class="btn" onclick={() => openYoutube(entry.url)}>
+    <button class="btn" onclick={() => openInBrowser(entry.url)}>
       <Icon name="external" size={16} />
       {t("search.openOnYoutube")}
     </button>

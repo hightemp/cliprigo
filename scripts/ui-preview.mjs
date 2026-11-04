@@ -1038,20 +1038,23 @@ const scenarios = [
     }),
     async run(page, check) {
       await page.getByRole("tab", { name: "Поиск" }).click();
+      // "Open on YouTube" for a video goes to the system browser (or the YouTube
+      // app on Android), not to the app's YouTube window.
+      await page.getByLabel("Поиск на YouTube").fill("timelapse");
+      await page.keyboard.press("Enter");
+      await page
+        .getByRole("button", { name: "Открыть на YouTube" })
+        .first()
+        .click();
+      const browser = await check.call("plugin:opener|open_url");
+      check.equal(browser.args.url, SEARCH_RESULTS[0].url);
+      check.equal(await check.count("youtube_open"), 0);
       if (MOBILE) {
-        // Android has no YouTube window: links go to the YouTube app.
+        // Android has no YouTube window.
         check.equal(
           await page.getByRole("button", { name: "Открыть YouTube" }).count(),
           0,
         );
-        await page.getByLabel("Поиск на YouTube").fill("timelapse");
-        await page.keyboard.press("Enter");
-        await page
-          .getByRole("button", { name: "Открыть на YouTube" })
-          .first()
-          .click();
-        const open = await check.call("plugin:opener|open_url");
-        check.equal(open.args.url, SEARCH_RESULTS[0].url);
         return;
       }
       await page.getByRole("button", { name: "Открыть YouTube" }).click();

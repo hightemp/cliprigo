@@ -8,6 +8,7 @@
   import {
     app,
     copyDetails,
+    openInBrowser,
     openInDownload,
     openYoutube,
     t,
@@ -237,7 +238,7 @@
               class="icon-btn"
               title={t("search.openOnYoutube")}
               aria-label={t("search.openOnYoutube")}
-              onclick={() => openYoutube(entry.url)}
+              onclick={() => openInBrowser(entry.url)}
             >
               <Icon name="external" size={16} />
             </button>
