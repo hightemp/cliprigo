@@ -38,11 +38,13 @@ Cliprigo is a friendly front end for [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 - **Keeps itself working.** yt-dlp is checked for updates on start, since YouTube changes often.
 - English and Russian interface, light and dark theme following the system. Controls are drawn by the app itself, and on phones the tabs sit in a bottom bar.
 
-| Search with filters                           | Favorites                                       |
-| --------------------------------------------- | ----------------------------------------------- |
-| ![Search](docs/screenshots/search-en.png)     | ![Favorites](docs/screenshots/favorites-en.png) |
-| **Playlist**                                  | **History**                                     |
-| ![Playlist](docs/screenshots/playlist-en.png) | ![History](docs/screenshots/history-en.png)     |
+| Search with filters                             | Favorites                                                 |
+| ----------------------------------------------- | --------------------------------------------------------- |
+| ![Search](docs/screenshots/search-en.png)       | ![Favorites](docs/screenshots/favorites-en.png)           |
+| **Playlist**                                    | **History**                                               |
+| ![Playlist](docs/screenshots/playlist-en.png)   | ![History](docs/screenshots/history-en.png)               |
+| **Subtitles**                                   | **Search history**                                        |
+| ![Subtitles](docs/screenshots/subtitles-en.png) | ![Search history](docs/screenshots/search-history-en.png) |
 
 ## Install
 

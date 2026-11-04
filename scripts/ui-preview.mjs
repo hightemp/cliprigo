@@ -1642,9 +1642,11 @@ const scenarios = [
       await dialog.getByRole("checkbox", { name: "Показывать время" }).check();
       await check.text("0:13");
 
-      await dialog.getByLabel("Найти в субтитрах").fill("SHADOWS");
+      await dialog.getByLabel("Найти в субтитрах").fill("shadows");
       await check.text("1 совпадение");
       check.equal(await dialog.locator("mark").count(), 1, "highlighted");
+      // Let the checkbox finish its animation before the screenshot.
+      await page.waitForTimeout(300);
       await page.screenshot({ path: `${OUT}/36-subtitles.png` });
       await dialog.getByLabel("Найти в субтитрах").fill("");
 
@@ -1735,6 +1737,31 @@ const scenarios = [
       await check.text(VIDEO.title);
       await page.getByRole("radio", { name: "Только звук" }).click();
       check.equal(await subs.count(), 0, "no picker for audio");
+    },
+  },
+  {
+    // English screenshot of the subtitles for the README and the site.
+    name: "39-subtitles-en",
+    theme: "light",
+    responses: ready("en", {
+      youtube_search: { entries: SEARCH_RESULTS, hasMore: true },
+      video_probe: { ...VIDEO, subtitles: SUB_TRACKS },
+      subtitles_fetch: SUB_CUES,
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Search" }).click();
+      await page.getByLabel("Search YouTube").fill("timelapse mountains");
+      await page.keyboard.press("Enter");
+      await resultRow(page, SEARCH_RESULTS[0].title)
+        .getByRole("button", { name: "Subtitles" })
+        .click();
+      const dialog = page.getByRole("dialog", { name: "Subtitles" });
+      await dialog.getByText(SUB_PHRASES[3]).waitFor();
+      await dialog.getByRole("checkbox", { name: "Show time" }).check();
+      await dialog.getByLabel("Find in subtitles").fill("light");
+      await check.text("1 match");
+      // Let the checkbox finish its animation before the screenshot.
+      await page.waitForTimeout(300);
     },
   },
   {
