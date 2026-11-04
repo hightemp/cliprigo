@@ -32,3 +32,12 @@ export function sharedLink(text: string | null): string | null {
   // Punctuation that ends a sentence is not part of the link.
   return match ? match[0].replace(/[).,;!?]+$/, "") : null;
 }
+
+/** Keys that reload the page in a browser engine: F5, Ctrl/Cmd+R (with Shift too). */
+export function browserShortcut(
+  e: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey">,
+): boolean {
+  return (
+    e.key === "F5" || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r")
+  );
+}

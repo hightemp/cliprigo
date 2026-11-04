@@ -7,6 +7,7 @@
   import { CODECS, type Codec } from "$lib/types";
   import { app, t, toastError } from "$lib/state.svelte";
   import Icon from "./Icon.svelte";
+  import Select from "./Select.svelte";
 
   let {
     heights,
@@ -77,38 +78,43 @@
   {#if mode === "video"}
     <label>
       <span class="muted">{t("download.quality")}</span>
-      <select class="input" bind:value={quality}>
-        {#each options as h (h)}
-          <option value={h}
-            >{h === null ? t("download.best") : qualityLabel(h)}</option
-          >
-        {/each}
-      </select>
+      <Select
+        bind:value={quality}
+        options={options.map((h) => ({
+          value: h,
+          label: h === null ? t("download.best") : qualityLabel(h),
+        }))}
+      />
     </label>
     <label>
       <span class="muted">{t("download.codec")}</span>
-      <select class="input" bind:value={codec}>
-        {#each CODECS as c (c)}
-          <option value={c}>{t(`codecs.name.${c}`)}</option>
-        {/each}
-      </select>
+      <Select
+        bind:value={codec}
+        options={CODECS.map((c) => ({
+          value: c,
+          label: t(`codecs.name.${c}`),
+        }))}
+      />
     </label>
   {:else}
     <label>
       <span class="muted">{t("download.audioFormat")}</span>
-      <select class="input" bind:value={audio}>
-        <option value="mp3">MP3</option>
-        <option value="m4a">M4A</option>
-      </select>
+      <Select
+        bind:value={audio}
+        options={[
+          { value: "mp3", label: "MP3" },
+          { value: "m4a", label: "M4A" },
+        ]}
+      />
     </label>
   {/if}
 
   <div class="folder">
     <span class="muted">{t("download.folder")}</span>
     {#if isAndroid}
-      <span class="ellipsis path" title={folder}><bdi>{folder}</bdi></span>
+      <span class="ellipsis path" data-tip={folder}><bdi>{folder}</bdi></span>
     {:else}
-      <button class="btn" onclick={chooseFolder} title={folder}>
+      <button class="btn" onclick={chooseFolder} data-tip={folder}>
         <Icon name="folder" size={16} />
         <span class="ellipsis path"><bdi>{folder}</bdi></span>
       </button>
@@ -161,7 +167,7 @@
     min-width: 0;
   }
 
-  label select {
+  label :global(.select) {
     font-size: 14px;
   }
 

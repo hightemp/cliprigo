@@ -19,6 +19,7 @@ export const ru: Messages = {
   common: {
     cancel: "Отмена",
     close: "Закрыть",
+    clear: "Очистить",
     retry: "Повторить",
     loading: "Загрузка…",
     change: "Изменить",

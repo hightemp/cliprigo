@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   componentLabel,
   detectAndroid,
+  browserShortcut,
   isBundled,
   sharedLink,
 } from "./platform";
@@ -43,5 +44,17 @@ describe("platform", () => {
     );
     expect(sharedLink("no link here")).toBeNull();
     expect(sharedLink(null)).toBeNull();
+  });
+
+  it("knows the browser's own shortcuts", () => {
+    const key = (k: string, mods: Partial<KeyboardEvent> = {}) =>
+      browserShortcut({ key: k, ctrlKey: false, metaKey: false, ...mods });
+    expect(key("F5")).toBe(true);
+    expect(key("r", { ctrlKey: true })).toBe(true);
+    expect(key("R", { ctrlKey: true, shiftKey: true })).toBe(true);
+    expect(key("r", { metaKey: true })).toBe(true);
+    expect(key("r")).toBe(false);
+    // Copy and paste stay.
+    expect(key("c", { ctrlKey: true })).toBe(false);
   });
 });

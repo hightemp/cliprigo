@@ -15,6 +15,8 @@
   } from "$lib/types";
   import Dialog from "./Dialog.svelte";
   import Icon from "./Icon.svelte";
+  import SearchField from "./SearchField.svelte";
+  import Select from "./Select.svelte";
   import Thumb from "./Thumb.svelte";
 
   const PAGE = 50;
@@ -140,22 +142,15 @@
 
 <div class="tab">
   <div class="filters">
-    <div class="search">
-      <Icon name="search" size={16} />
-      <input
-        class="input"
-        type="search"
-        placeholder={t("history.search")}
-        aria-label={t("history.search")}
-        bind:value={search}
-      />
-    </div>
-    <select class="input" bind:value={status} aria-label={t("history.filter")}>
-      <option value="">{t("history.all")}</option>
-      {#each FILTERS as s (s)}
-        <option value={s}>{t(`status.${s}`)}</option>
-      {/each}
-    </select>
+    <SearchField bind:value={search} placeholder={t("history.search")} />
+    <Select
+      bind:value={status}
+      label={t("history.filter")}
+      options={[
+        { value: "", label: t("history.all") },
+        ...FILTERS.map((s) => ({ value: s, label: t(`status.${s}`) })),
+      ]}
+    />
   </div>
 
   {#if items.length === 0 && !loading}
@@ -176,7 +171,7 @@
           />
           <div class="main">
             <div class="title-row">
-              <span class="title ellipsis" title={item.title ?? item.url}
+              <span class="title ellipsis" data-tip={item.title ?? item.url}
                 >{item.title ?? item.url}</span
               >
               {#if item.status !== "completed"}
@@ -204,7 +199,7 @@
               {#if !isAndroid}
                 <button
                   class="icon-btn"
-                  title={t("history.showInFolder")}
+                  data-tip={t("history.showInFolder")}
                   aria-label={t("history.showInFolder")}
                   onclick={() => run(() => api.historyReveal(item.id), item)}
                 >
@@ -215,7 +210,7 @@
             {#if item.status === "failed"}
               <button
                 class="icon-btn"
-                title={t("errors.copyDetails")}
+                data-tip={t("errors.copyDetails")}
                 aria-label={t("errors.copyDetails")}
                 onclick={() =>
                   copyDetails(
@@ -234,7 +229,7 @@
             {:else if item.status === "completed"}
               <button
                 class="icon-btn"
-                title={t("history.downloadAgain")}
+                data-tip={t("history.downloadAgain")}
                 aria-label={t("history.downloadAgain")}
                 onclick={() => downloadAgain(item)}
               >
@@ -243,7 +238,7 @@
             {/if}
             <button
               class="icon-btn"
-              title={t("history.copyLink")}
+              data-tip={t("history.copyLink")}
               aria-label={t("history.copyLink")}
               onclick={() =>
                 run(async () => {
@@ -255,7 +250,7 @@
             </button>
             <button
               class="icon-btn"
-              title={t("history.openYoutube")}
+              data-tip={t("history.openYoutube")}
               aria-label={t("history.openYoutube")}
               onclick={() => run(() => openUrl(item.url))}
             >
@@ -264,7 +259,7 @@
             {#if !active}
               <button
                 class="icon-btn"
-                title={t("history.remove")}
+                data-tip={t("history.remove")}
                 aria-label={t("history.remove")}
                 onclick={() => {
                   deleteFile = false;
@@ -317,25 +312,6 @@
   .filters {
     display: flex;
     gap: 8px;
-  }
-
-  .search {
-    flex: 1;
-    position: relative;
-    display: flex;
-    align-items: center;
-    color: var(--muted);
-  }
-
-  .search :global(svg) {
-    position: absolute;
-    left: 10px;
-    pointer-events: none;
-  }
-
-  .search input {
-    width: 100%;
-    padding-left: 32px;
   }
 
   .empty {

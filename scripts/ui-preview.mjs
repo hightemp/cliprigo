@@ -282,14 +282,11 @@ const scenarios = [
       await page.keyboard.press("Enter");
       await check.text(VIDEO.title);
       const quality = page.getByLabel("Качество");
-      check.equal(
-        await quality.locator("option:checked").textContent(),
-        "Лучшее доступное",
-      );
-      await quality.selectOption({ label: "1080p" });
+      check.equal((await quality.textContent()).trim(), "Лучшее доступное");
+      await check.choose(quality, { label: "1080p" });
       // A long folder is cut at the start (the folder name stays visible) and must
       // not overflow the card.
-      const folder = page.locator("[title^='/home/user/Videos']");
+      const folder = page.locator("[data-tip^='/home/user/Videos']");
       await folder.waitFor({ timeout: 5000 });
       const fits = await folder.evaluate((el) => {
         const card = el.closest(".card").getBoundingClientRect();
@@ -615,7 +612,9 @@ const scenarios = [
       await check.text("Update to 2026.10.15");
       await page.screenshot({ path: `${OUT}/10-settings.png` });
 
-      await page.getByLabel("Simultaneous downloads").selectOption("3");
+      await check.choose(page.getByLabel("Simultaneous downloads"), {
+        value: "3",
+      });
       const set = await check.call("settings_set");
       check.equal(set.args.settings.concurrency, 3);
     },
@@ -823,9 +822,9 @@ const scenarios = [
       await check.text(VIDEO.title);
       // The default comes from the settings.
       const codec = page.getByLabel("Кодек");
-      check.equal(await codec.inputValue(), "av1");
+      check.equal(await codec.getAttribute("data-value"), "av1");
       await check.text("AV1 Video Extension");
-      await codec.selectOption("h264");
+      await check.choose(codec, { value: "h264" });
       await check.text("открывается в любом плеере");
       await page.screenshot({ path: `${OUT}/18-codec-picker.png` });
       await page.getByRole("button", { name: "Скачать" }).last().click();
@@ -846,7 +845,7 @@ const scenarios = [
     }),
     async run(page, check) {
       await page.getByRole("tab", { name: "Settings" }).click();
-      await page.getByLabel("Default codec").selectOption("vp9");
+      await check.choose(page.getByLabel("Default codec"), { value: "vp9" });
       const set = await check.call("settings_set");
       check.equal(set.args.settings.defaultCodec, "vp9");
       await check.text("VP9 Video Extensions");
@@ -976,7 +975,7 @@ const scenarios = [
       check.equal(more.args.page, 2);
       // Page 2 repeats two results; each video is listed once.
       await check.text("#21");
-      check.equal(await page.locator("ul > li").count(), 22);
+      check.equal(await page.locator("li.card").count(), 22);
     },
     noFinalShot: true,
   },
@@ -1074,9 +1073,9 @@ const scenarios = [
       });
 
       await page.getByRole("button", { name: "Фильтры" }).click();
-      await page.getByLabel("Дата загрузки").selectOption("week");
+      await check.choose(page.getByLabel("Дата загрузки"), { value: "week" });
       await page.getByRole("checkbox", { name: "4K" }).check();
-      await page.getByLabel("Сортировка").selectOption("views");
+      await check.choose(page.getByLabel("Сортировка"), { value: "views" });
       // Each change searches again with the same text.
       await page.waitForFunction(
         () =>
@@ -1105,6 +1104,63 @@ const scenarios = [
       check.equal(reset.args.filters, plain.args.filters);
     },
     noFinalShot: true,
+  },
+  {
+    name: "27-custom-controls",
+    theme: "light",
+    responses: ready("en", {
+      history_list: [record(1, { status: "completed", title: "Sunset" })],
+      settings_set: settings("en"),
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Settings" }).click();
+      const codec = page.getByLabel("Default codec");
+      const saved = async () =>
+        (await check.call("settings_set")).args.settings.defaultCodec;
+      // Keyboard: arrows open and move, Enter picks, Esc closes without a change.
+      await codec.focus();
+      await page.keyboard.press("ArrowDown");
+      check.equal(await codec.getAttribute("aria-expanded"), "true", "opened");
+      await page.screenshot({ path: `${OUT}/27-select-open.png` });
+      await page.keyboard.press("ArrowDown");
+      await page.keyboard.press("Enter");
+      check.equal(await saved(), "h264");
+      check.equal(await codec.getAttribute("aria-expanded"), "false", "picked");
+      await page.keyboard.press("ArrowDown");
+      await page.keyboard.press("End");
+      await page.keyboard.press("Escape");
+      check.equal(await check.count("settings_set"), 1);
+      // Typing a letter jumps to the option starting with it.
+      await page.keyboard.press("Enter");
+      await page.keyboard.press("v");
+      await page.keyboard.press("Enter");
+      check.equal(await saved(), "vp9");
+      // A click outside closes the list.
+      await codec.click();
+      await page.mouse.click(5, 300);
+      // The popover reports closing with an asynchronous toggle event.
+      await page.waitForFunction(
+        () => document.querySelector("#default-codec").ariaExpanded === "false",
+        null,
+        { timeout: 2000 },
+      );
+
+      await page.getByRole("tab", { name: "History" }).click();
+      const search = page.getByLabel("Search by title or channel");
+      await search.fill("sun");
+      await page.getByRole("button", { name: "Clear" }).click();
+      check.equal(await search.inputValue(), "");
+
+      if (!MOBILE) {
+        // The app's tooltip after a short hover.
+        await page.getByRole("button", { name: "Copy link" }).hover();
+        const tip = page.locator(".tip");
+        await tip.waitFor({ state: "visible" });
+        check.equal(await tip.textContent(), "Copy link");
+        await page.mouse.move(5, 300);
+        await tip.waitFor({ state: "hidden" });
+      }
+    },
   },
   {
     name: "25-android-share",
@@ -1162,10 +1218,25 @@ function checks(page) {
         cmd,
       );
     },
-    equal(actual, expected) {
+    /** Picks an option in the app's Select by `value` or visible `label`. */
+    async choose(combobox, { value, label }) {
+      await combobox.click();
+      const list = page.locator(
+        `#${await combobox.getAttribute("aria-controls")}`,
+      );
+      const option =
+        value === undefined
+          ? list.getByRole("option", { name: label, exact: true })
+          : list.locator(`[role=option][data-value="${value}"]`);
+      await option.click();
+      if ((await combobox.getAttribute("aria-expanded")) !== "false")
+        throw new Error("the list stayed open");
+    },
+    equal(actual, expected, what = "") {
       const a = JSON.stringify(actual);
       const e = JSON.stringify(expected);
-      if (a !== e) throw new Error(`expected ${e}, got ${a}`);
+      if (a !== e)
+        throw new Error(`${what ? `${what}: ` : ""}expected ${e}, got ${a}`);
     },
   };
 }
@@ -1230,6 +1301,24 @@ try {
       await page.goto(BASE);
       await scenario.run(page, checks(page));
       if (errors.length) throw new Error(`page errors: ${errors.join("; ")}`);
+      // The app draws its own controls: no native selects or tooltips, and no
+      // browser context menu outside text fields.
+      const native = await page.evaluate(() => {
+        const found = [];
+        if (document.querySelector("select")) found.push("select");
+        const titled = document.querySelector(
+          "[title]:not(svg [title], iframe)",
+        );
+        if (titled) found.push(`title on ${titled.tagName}`);
+        const menu = new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+        });
+        document.body.dispatchEvent(menu);
+        if (!menu.defaultPrevented) found.push("context menu");
+        return found;
+      });
+      if (native.length) throw new Error(`native UI: ${native.join(", ")}`);
       if (MOBILE) {
         // A phone screen must never scroll sideways; name what sticks out.
         const wide = await page.evaluate(() => {

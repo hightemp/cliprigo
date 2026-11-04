@@ -23,6 +23,8 @@
   } from "$lib/types";
   import Icon from "./Icon.svelte";
   import PlayerDialog from "./PlayerDialog.svelte";
+  import SearchField from "./SearchField.svelte";
+  import Select from "./Select.svelte";
   import Thumb from "./Thumb.svelte";
 
   let query = $state("");
@@ -161,17 +163,11 @@
       search(false);
     }}
   >
-    <div class="search-input">
-      <Icon name="search" size={16} />
-      <input
-        class="input"
-        type="search"
-        placeholder={t("search.placeholder")}
-        aria-label={t("search.placeholder")}
-        bind:value={query}
-        enterkeyhint="search"
-      />
-    </div>
+    <SearchField
+      bind:value={query}
+      placeholder={t("search.placeholder")}
+      enterkeyhint="search"
+    />
     <button type="submit" class="btn primary" disabled={!query.trim()}>
       {t("search.submit")}
     </button>
@@ -193,56 +189,41 @@
     <div class="card filters" id="search-filters">
       <label>
         <span class="muted">{t("search.filters.uploadDate")}</span>
-        <select
-          class="input"
-          value={filters.uploadDate ?? ""}
-          onchange={(e) =>
-            setFilters({
-              ...filters,
-              uploadDate: (e.currentTarget.value ||
-                null) as SearchFilters["uploadDate"],
-            })}
-        >
-          <option value="">{t("search.filters.any")}</option>
-          {#each ["hour", "today", "week", "month", "year"] as d (d)}
-            <option value={d}>{t(`search.filters.date.${d}`)}</option>
-          {/each}
-        </select>
+        <Select
+          value={filters.uploadDate}
+          onchange={(uploadDate) => setFilters({ ...filters, uploadDate })}
+          options={[
+            { value: null, label: t("search.filters.any") },
+            ...(["hour", "today", "week", "month", "year"] as const).map(
+              (d) => ({ value: d, label: t(`search.filters.date.${d}`) }),
+            ),
+          ]}
+        />
       </label>
       <label>
         <span class="muted">{t("search.filters.length")}</span>
-        <select
-          class="input"
-          value={filters.length ?? ""}
-          onchange={(e) =>
-            setFilters({
-              ...filters,
-              length: (e.currentTarget.value ||
-                null) as SearchFilters["length"],
-            })}
-        >
-          <option value="">{t("search.filters.any")}</option>
-          {#each ["short", "medium", "long"] as l (l)}
-            <option value={l}>{t(`search.filters.lengths.${l}`)}</option>
-          {/each}
-        </select>
+        <Select
+          value={filters.length}
+          onchange={(length) => setFilters({ ...filters, length })}
+          options={[
+            { value: null, label: t("search.filters.any") },
+            ...(["short", "medium", "long"] as const).map((l) => ({
+              value: l,
+              label: t(`search.filters.lengths.${l}`),
+            })),
+          ]}
+        />
       </label>
       <label>
         <span class="muted">{t("search.filters.sort")}</span>
-        <select
-          class="input"
+        <Select
           value={filters.sort}
-          onchange={(e) =>
-            setFilters({
-              ...filters,
-              sort: e.currentTarget.value as SearchFilters["sort"],
-            })}
-        >
-          <option value="relevance"
-            >{t("search.filters.sorts.relevance")}</option
-          >
-          <option value="views">{t("search.filters.sorts.views")}</option>
-        </select>
+          onchange={(sort) => setFilters({ ...filters, sort })}
+          options={[
+            { value: "relevance", label: t("search.filters.sorts.relevance") },
+            { value: "views", label: t("search.filters.sorts.views") },
+          ]}
+        />
       </label>
       <fieldset>
         <legend class="muted">{t("search.filters.quality")}</legend>
@@ -304,7 +285,7 @@
             {/if}
           </button>
           <div class="main">
-            <span class="title" title={entry.title}>{entry.title}</span>
+            <span class="title" data-tip={entry.title}>{entry.title}</span>
             <div class="muted small">{meta(entry)}</div>
             {#if entry.live || badge}
               <div class="badges">
@@ -323,7 +304,7 @@
             {#if !entry.live}
               <button
                 class="btn small-btn"
-                title={t("search.downloadHint")}
+                data-tip={t("search.downloadHint")}
                 onclick={() => download(entry)}
               >
                 <Icon name="download" size={14} />
@@ -331,7 +312,7 @@
               </button>
               <button
                 class="btn small-btn"
-                title={t("search.queueHint")}
+                data-tip={t("search.queueHint")}
                 onclick={() => addToQueue(entry)}
               >
                 {t("search.queue")}
@@ -339,7 +320,7 @@
             {/if}
             <button
               class="icon-btn"
-              title={t("search.openOnYoutube")}
+              data-tip={t("search.openOnYoutube")}
               aria-label={t("search.openOnYoutube")}
               onclick={() => openInBrowser(entry.url)}
             >
@@ -388,26 +369,6 @@
   .search-row {
     display: flex;
     gap: 8px;
-  }
-
-  .search-input {
-    flex: 1;
-    position: relative;
-    display: flex;
-    align-items: center;
-    color: var(--muted);
-  }
-
-  .search-input :global(svg) {
-    position: absolute;
-    left: 10px;
-    pointer-events: none;
-  }
-
-  .search-input input {
-    width: 100%;
-    height: 38px;
-    padding-left: 34px;
   }
 
   .search-row .btn {
@@ -625,7 +586,7 @@
       flex-wrap: wrap;
     }
 
-    .search-input {
+    .search-row > :global(.field) {
       flex-basis: 100%;
     }
 

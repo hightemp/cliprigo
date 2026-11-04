@@ -70,7 +70,7 @@
             icon={entry.format === "video" ? "video" : "music"}
           />
           <div class="main">
-            <div class="title ellipsis" title={entry.title ?? entry.url}>
+            <div class="title ellipsis" data-tip={entry.title ?? entry.url}>
               {entry.title ?? entry.url}
             </div>
             <div
@@ -94,7 +94,7 @@
           </div>
           <button
             class="icon-btn"
-            title={t("common.cancel")}
+            data-tip={t("common.cancel")}
             aria-label={t("common.cancel")}
             onclick={() => cancel(entry.id)}
           >

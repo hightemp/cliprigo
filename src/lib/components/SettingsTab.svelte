@@ -32,6 +32,7 @@
     UpdateInfo,
   } from "$lib/types";
   import Icon from "./Icon.svelte";
+  import Select from "./Select.svelte";
 
   const QUALITIES = [2160, 1440, 1080, 720, 480, 360];
 
@@ -179,7 +180,7 @@
         <button
           class="btn folder"
           onclick={chooseFolder}
-          title={draft.downloadDir}
+          data-tip={draft.downloadDir}
         >
           <Icon name="folder" size={16} />
           <span class="ellipsis path"><bdi>{draft.downloadDir}</bdi></span>
@@ -189,37 +190,41 @@
 
     <label class="row">
       <span>{t("settings.defaultFormat")}</span>
-      <select class="input" bind:value={draft.defaultFormat} onchange={save}>
-        <option value="video">{t("formats.video")}</option>
-        <option value="audio_mp3">{t("formats.audio_mp3")}</option>
-        <option value="audio_m4a">{t("formats.audio_m4a")}</option>
-      </select>
+      <Select
+        bind:value={draft.defaultFormat}
+        onchange={save}
+        options={(["video", "audio_mp3", "audio_m4a"] as const).map((f) => ({
+          value: f,
+          label: t(`formats.${f}`),
+        }))}
+      />
     </label>
 
     {#if draft.defaultFormat === "video"}
       <label class="row">
         <span>{t("settings.defaultQuality")}</span>
-        <select class="input" bind:value={draft.defaultQuality} onchange={save}>
-          <option value={null}>{t("download.best")}</option>
-          {#each QUALITIES as q (q)}
-            <option value={q}>{qualityLabel(q)}</option>
-          {/each}
-        </select>
+        <Select
+          bind:value={draft.defaultQuality}
+          onchange={save}
+          options={[
+            { value: null, label: t("download.best") },
+            ...QUALITIES.map((q) => ({ value: q, label: qualityLabel(q) })),
+          ]}
+        />
       </label>
 
       <div class="row column">
         <div class="row">
           <label for="default-codec">{t("settings.defaultCodec")}</label>
-          <select
+          <Select
             id="default-codec"
-            class="input"
             bind:value={draft.defaultCodec}
             onchange={save}
-          >
-            {#each CODECS as c (c)}
-              <option value={c}>{t(`codecs.name.${c}`)}</option>
-            {/each}
-          </select>
+            options={CODECS.map((c) => ({
+              value: c,
+              label: t(`codecs.name.${c}`),
+            }))}
+          />
         </div>
         <span class="muted small">{t(`codecs.hint.${draft.defaultCodec}`)}</span
         >
@@ -228,11 +233,11 @@
 
     <label class="row">
       <span>{t("settings.concurrency")}</span>
-      <select class="input" bind:value={draft.concurrency} onchange={save}>
-        {#each [1, 2, 3, 4, 5] as n (n)}
-          <option value={n}>{n}</option>
-        {/each}
-      </select>
+      <Select
+        bind:value={draft.concurrency}
+        onchange={save}
+        options={[1, 2, 3, 4, 5].map((n) => ({ value: n, label: String(n) }))}
+      />
     </label>
 
     <div class="row column">
@@ -341,11 +346,15 @@
 
     <label class="row">
       <span>{t("settings.language")}</span>
-      <select class="input" bind:value={draft.language} onchange={save}>
-        <option value="system">{t("settings.languageSystem")}</option>
-        <option value="ru">Русский</option>
-        <option value="en">English</option>
-      </select>
+      <Select
+        bind:value={draft.language}
+        onchange={save}
+        options={[
+          { value: "system", label: t("settings.languageSystem") },
+          { value: "ru", label: "Русский" },
+          { value: "en", label: "English" },
+        ]}
+      />
     </label>
 
     <label class="row check">
@@ -471,8 +480,11 @@
     flex: none;
   }
 
+  /* One full-width column: .row's space-between would size it to the content,
+     so the width followed the length of the hint under the codec. */
   .row.column {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 6px;
   }
 
@@ -519,7 +531,7 @@
     gap: 8px;
   }
 
-  .row select {
+  .row :global(.select) {
     min-width: 180px;
   }
 
@@ -558,9 +570,34 @@
   }
 
   .template-help summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     cursor: pointer;
     color: var(--accent);
     width: fit-content;
+    list-style: none;
+  }
+
+  .template-help summary::-webkit-details-marker {
+    display: none;
+  }
+
+  /* The app's chevron instead of the browser's triangle. */
+  .template-help summary::before {
+    content: "";
+    width: 12px;
+    height: 12px;
+    background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6l6 6-6 6'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6l6 6-6 6'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+    transition: transform 0.15s;
+  }
+
+  .template-help[open] summary::before {
+    transform: rotate(90deg);
   }
 
   .template-help h4 {
@@ -705,7 +742,7 @@
       gap: 6px;
     }
 
-    .row select {
+    .row :global(.select) {
       min-width: 0;
     }
 
