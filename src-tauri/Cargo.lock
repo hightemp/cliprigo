@@ -594,6 +594,7 @@ dependencies = [
 name = "cliprigo"
 version = "0.1.5"
 dependencies = [
+ "base64 0.22.1",
  "dirs",
  "futures-util",
  "hex",

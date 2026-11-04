@@ -63,7 +63,6 @@ export const en = {
   search: {
     placeholder: "Search YouTube",
     submit: "Search",
-    openYoutube: "Open YouTube",
     hint: "Find a video to watch it right here, download it or add it to the queue.",
     searching: "Searching…",
     empty: "Nothing found. Try other words.",
@@ -84,10 +83,37 @@ export const en = {
     downloaded: "Downloaded",
     inQueue: "In the queue",
     openOnYoutube: "Open on YouTube",
-  },
-  youtube: {
-    download: "Download in Cliprigo",
-    crashed: "The YouTube window closed unexpectedly.",
+    filters: {
+      button: "Filters",
+      uploadDate: "Upload date",
+      length: "Length",
+      sort: "Sort by",
+      quality: "Quality and subtitles",
+      any: "Any",
+      reset: "Reset filters",
+      date: {
+        hour: "Last hour",
+        today: "Today",
+        week: "This week",
+        month: "This month",
+        year: "This year",
+      },
+      lengths: {
+        short: "Under 4 minutes",
+        medium: "4–20 minutes",
+        long: "Over 20 minutes",
+      },
+      sorts: {
+        relevance: "Relevance",
+        views: "Popularity",
+      },
+      features: {
+        hd: "HD",
+        "4k": "4K",
+        hdr: "HDR",
+        subtitles: "Subtitles",
+      },
+    },
   },
   playlist: {
     count: {

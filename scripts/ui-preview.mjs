@@ -934,7 +934,8 @@ const scenarios = [
       await page.getByLabel("Поиск на YouTube").fill("timelapse mountains");
       await page.keyboard.press("Enter");
       const search = await check.call("youtube_search");
-      check.equal(search.args, { query: "timelapse mountains", page: 1 });
+      check.equal(search.args.query, "timelapse mountains");
+      check.equal(search.args.page, 1);
       await check.text("1,2 млн просмотров");
       // "339 тыс. просмотров", not "просмотр" although 338 921 ends in 1.
       await check.text("339 тыс. просмотров");
@@ -1030,54 +1031,78 @@ const scenarios = [
     noFinalShot: true,
   },
   {
-    name: "24-youtube-window",
+    name: "24-open-on-youtube",
     theme: "light",
     responses: ready("ru", {
       youtube_search: { entries: SEARCH_RESULTS, hasMore: true },
-      video_probe: VIDEO,
     }),
     async run(page, check) {
       await page.getByRole("tab", { name: "Поиск" }).click();
-      // "Open on YouTube" for a video goes to the system browser (or the YouTube
-      // app on Android), not to the app's YouTube window.
+      // No in-app YouTube window: a video opens in the system browser (or the
+      // YouTube app on Android).
+      check.equal(
+        await page.getByRole("button", { name: "Открыть YouTube" }).count(),
+        0,
+      );
       await page.getByLabel("Поиск на YouTube").fill("timelapse");
       await page.keyboard.press("Enter");
       await page
         .getByRole("button", { name: "Открыть на YouTube" })
         .first()
         .click();
-      const browser = await check.call("plugin:opener|open_url");
-      check.equal(browser.args.url, SEARCH_RESULTS[0].url);
-      check.equal(await check.count("youtube_open"), 0);
-      if (MOBILE) {
-        // Android has no YouTube window.
-        check.equal(
-          await page.getByRole("button", { name: "Открыть YouTube" }).count(),
-          0,
-        );
-        return;
-      }
-      await page.getByRole("button", { name: "Открыть YouTube" }).click();
-      const open = await check.call("youtube_open");
-      check.equal(open.args, {
-        url: "https://www.youtube.com/",
-        label: "Скачать в Cliprigo",
+      const open = await check.call("plugin:opener|open_url");
+      check.equal(open.args.url, SEARCH_RESULTS[0].url);
+    },
+    noFinalShot: true,
+  },
+  {
+    name: "26-search-filters",
+    theme: "light",
+    responses: ready("ru", {
+      youtube_search: { entries: SEARCH_RESULTS, hasMore: true },
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Поиск" }).click();
+      await page.getByLabel("Поиск на YouTube").fill("timelapse");
+      await page.keyboard.press("Enter");
+      const plain = await check.call("youtube_search");
+      check.equal(plain.args.filters, {
+        uploadDate: null,
+        length: null,
+        features: [],
+        sort: "relevance",
       });
-      // The window's download button sends the open video to the Download tab.
-      await check.listening("app://open-url");
-      await page.evaluate(
-        (url) => window.__emit("app://open-url", url),
-        VIDEO.url,
+
+      await page.getByRole("button", { name: "Фильтры" }).click();
+      await page.getByLabel("Дата загрузки").selectOption("week");
+      await page.getByRole("checkbox", { name: "4K" }).check();
+      await page.getByLabel("Сортировка").selectOption("views");
+      // Each change searches again with the same text.
+      await page.waitForFunction(
+        () =>
+          window.__calls.filter((c) => c.cmd === "youtube_search").length === 4,
       );
-      const probe = await check.call("video_probe");
-      check.equal(probe.args.url, VIDEO.url);
-      await check.text(VIDEO.title);
-      check.equal(
-        await page
-          .getByRole("tab", { name: "Загрузка" })
-          .getAttribute("aria-selected"),
-        "true",
+      const filtered = await check.call("youtube_search");
+      check.equal(filtered.args, {
+        query: "timelapse",
+        filters: {
+          uploadDate: "week",
+          length: null,
+          features: ["4k"],
+          sort: "views",
+        },
+        page: 1,
+      });
+      await check.text("3");
+      await page.screenshot({ path: `${OUT}/26-search-filters.png` });
+
+      await page.getByRole("button", { name: "Сбросить" }).click();
+      await page.waitForFunction(
+        () =>
+          window.__calls.filter((c) => c.cmd === "youtube_search").length === 5,
       );
+      const reset = await check.call("youtube_search");
+      check.equal(reset.args.filters, plain.args.filters);
     },
     noFinalShot: true,
   },

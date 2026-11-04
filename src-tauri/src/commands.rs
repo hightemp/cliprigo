@@ -154,6 +154,7 @@ pub async fn video_probe(
 pub async fn youtube_search(
     manager: State<'_, Arc<ComponentManager>>,
     query: String,
+    filters: ytdlp::search::SearchFilters,
     page: u32,
 ) -> AppResult<SearchPage> {
     let query = query.trim();
@@ -164,7 +165,7 @@ pub async fn youtube_search(
         });
     }
     let tools = manager.tools()?;
-    ytdlp::runner::search(&tools, query, page).await
+    ytdlp::runner::search(&tools, query, &filters, page).await
 }
 
 /// Address of a local page that plays `video_id` inside the app (see player.rs).
@@ -180,29 +181,6 @@ pub async fn player_url(
     server
         .url(&video_id, &lang)
         .ok_or_else(|| AppError::Other(format!("not a YouTube video id: {video_id}")))
-}
-
-/// Shows a YouTube page in the app's YouTube window; `label` is its download button.
-/// Android has no such window: links open in the YouTube app there.
-#[tauri::command]
-pub fn youtube_open(
-    app: AppHandle,
-    proxy: State<'_, crate::net::ProxySetting>,
-    url: String,
-    label: String,
-) -> AppResult<()> {
-    if !ytdlp::url::is_youtube(&url) {
-        return Err(AppError::Other(format!("not a YouTube link: {url}")));
-    }
-    #[cfg(desktop)]
-    return app
-        .state::<crate::browser::Browser>()
-        .open(&app, &url, &label, proxy.get());
-    #[cfg(mobile)]
-    {
-        let _ = (app, proxy, label);
-        Err(AppError::UnsupportedPlatform("YouTube window".into()))
-    }
 }
 
 // Queue commands are async so they run inside the Tauri runtime the queue spawns onto.

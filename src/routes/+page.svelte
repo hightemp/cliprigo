@@ -2,10 +2,8 @@
   import { onMount } from "svelte";
   import {
     api,
-    onBrowserCrashed,
     onCloseRequested,
     onComponentUpdated,
-    onOpenUrl,
     onQueueEvent,
   } from "$lib/api";
   import { errorMessage } from "$lib/errors";
@@ -100,8 +98,6 @@
       onComponentUpdated((u) =>
         toast(t("app.ytdlpUpdated", { version: u.version })),
       ),
-      onOpenUrl(openInDownload),
-      onBrowserCrashed(() => toast(t("youtube.crashed"), true)),
     ];
     Promise.all(unlisten).finally(start);
     return () => unlisten.forEach((p) => p.then((u) => u()));

@@ -67,7 +67,6 @@ export const ru: Messages = {
   search: {
     placeholder: "Поиск на YouTube",
     submit: "Найти",
-    openYoutube: "Открыть YouTube",
     hint: "Найдите ролик, чтобы посмотреть его прямо здесь, скачать или добавить в очередь.",
     searching: "Ищем…",
     empty: "Ничего не найдено. Попробуйте другие слова.",
@@ -90,10 +89,37 @@ export const ru: Messages = {
     downloaded: "Скачано",
     inQueue: "В очереди",
     openOnYoutube: "Открыть на YouTube",
-  },
-  youtube: {
-    download: "Скачать в Cliprigo",
-    crashed: "Окно YouTube неожиданно закрылось.",
+    filters: {
+      button: "Фильтры",
+      uploadDate: "Дата загрузки",
+      length: "Длительность",
+      sort: "Сортировка",
+      quality: "Качество и субтитры",
+      any: "Любая",
+      reset: "Сбросить",
+      date: {
+        hour: "За последний час",
+        today: "Сегодня",
+        week: "За неделю",
+        month: "За месяц",
+        year: "За год",
+      },
+      lengths: {
+        short: "До 4 минут",
+        medium: "4–20 минут",
+        long: "Больше 20 минут",
+      },
+      sorts: {
+        relevance: "По релевантности",
+        views: "По популярности",
+      },
+      features: {
+        hd: "HD",
+        "4k": "4K",
+        hdr: "HDR",
+        subtitles: "Субтитры",
+      },
+    },
   },
   playlist: {
     count: {

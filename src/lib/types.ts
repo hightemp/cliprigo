@@ -172,6 +172,17 @@ export interface PlaylistEntry {
   live: boolean;
 }
 
+/** See src-tauri/src/ytdlp/search.rs. */
+export type SearchFeature = "hd" | "4k" | "hdr" | "subtitles";
+
+export interface SearchFilters {
+  uploadDate: "hour" | "today" | "week" | "month" | "year" | null;
+  /** Short: under 4 minutes; medium: 4 to 20; long: over 20. */
+  length: "short" | "medium" | "long" | null;
+  features: SearchFeature[];
+  sort: "relevance" | "views";
+}
+
 export interface SearchPage {
   entries: PlaylistEntry[];
   /** The page was full: asking for the next one may find more. */

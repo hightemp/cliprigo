@@ -100,7 +100,7 @@ pub struct SearchPage {
     pub has_more: bool,
 }
 
-/// Parses `yt-dlp -J --flat-playlist ytsearchN:…` output for a page of `page_size`:
+/// Parses `yt-dlp -J --flat-playlist` output for a page of search results of `page_size`:
 /// the videos found. Channels found too are left out, so a full page may list fewer.
 pub fn parse_search(json: &str, page_size: usize) -> AppResult<SearchPage> {
     let found = serde_json::from_str::<Value>(json)?

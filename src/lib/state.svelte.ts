@@ -5,7 +5,6 @@ import { errorMessage } from "./errors";
 import { errorReport } from "./report";
 import type { Lang } from "./format";
 import { resolveLanguage, translate, type Params } from "./i18n";
-import { isAndroid } from "./platform";
 import type { QueueEntry, Settings } from "./types";
 
 /** App-wide reactive state shared by the tabs. */
@@ -69,17 +68,6 @@ export function openInDownload(url: string) {
 export async function openInBrowser(url: string) {
   try {
     await openUrl(url);
-  } catch (err) {
-    toastError(err);
-  }
-}
-
-/** Browses YouTube in the app's YouTube window, which has a download button; on
- * Android, where there is no such window, in the YouTube app. */
-export async function openYoutube(url: string) {
-  try {
-    if (isAndroid) await openUrl(url);
-    else await api.youtubeOpen(url, t("youtube.download"));
   } catch (err) {
     toastError(err);
   }

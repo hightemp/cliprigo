@@ -13,6 +13,7 @@ use super::args::{self, DownloadRequest, Tools};
 use super::errors::{self, ErrorKind};
 use super::probe::{self, ProbeResult, SearchPage};
 use super::progress::{self, Snapshot, Tracker};
+use super::search::SearchFilters;
 use crate::error::{AppError, AppResult};
 
 const PROBE_TIMEOUT: Duration = Duration::from_secs(120);
@@ -36,8 +37,13 @@ async fn probe_with_timeout(tools: &Tools, url: &str, timeout: Duration) -> AppR
 }
 
 /// One page (from 1) of YouTube search results.
-pub async fn search(tools: &Tools, query: &str, page: u32) -> AppResult<SearchPage> {
-    let args = args::search_args(tools, query, page);
+pub async fn search(
+    tools: &Tools,
+    query: &str,
+    filters: &SearchFilters,
+    page: u32,
+) -> AppResult<SearchPage> {
+    let args = args::search_args(tools, query, filters, page);
     let stdout = run_json(tools, args, PROBE_TIMEOUT, query).await?;
     probe::parse_search(
         &String::from_utf8_lossy(&stdout),
@@ -483,17 +489,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn search_asks_ytsearch_and_parses_results() {
+    async fn search_lists_the_results_page_and_parses_it() {
         let dir = tempfile::tempdir().unwrap();
         let fixture = dir.path().join("search.json");
         std::fs::write(&fixture, include_str!("../../tests/fixtures/search.json")).unwrap();
         let tools = fake_tools(dir.path(), &format!("cat '{}'", fixture.display()));
 
-        let found = search(&tools, "timelapse mountains 4k", 1).await.unwrap();
+        let filters = crate::ytdlp::search::SearchFilters::default();
+        let found = search(&tools, "timelapse mountains", &filters, 1)
+            .await
+            .unwrap();
         assert_eq!(found.entries.len(), 3);
         let args = recorded_args(dir.path());
         let dash = args.iter().position(|a| a == "--").unwrap();
-        assert_eq!(args[dash + 1], "ytsearch20:timelapse mountains 4k");
+        assert!(args[dash + 1].ends_with("search_query=timelapse+mountains&sp=EgIQAQ%3D%3D"));
     }
 
     /// On Android yt-dlp is a zipapp started by the bundled Python, which needs its
@@ -912,7 +921,9 @@ mod live_tests {
     #[ignore = "network"]
     async fn live_search_pages() {
         let tools = tools().await;
-        let Some(first) = live("search page 1", || search(&tools, "rick astley", 1)).await else {
+        let plain = SearchFilters::default();
+        let Some(first) = live("search page 1", || search(&tools, "rick astley", &plain, 1)).await
+        else {
             return;
         };
         assert!(first.has_more);
@@ -920,7 +931,8 @@ mod live_tests {
         assert!(first.len() >= 15, "{}", first.len());
         assert!(first.iter().all(|e| crate::player::is_video_id(&e.id)));
         assert!(first.iter().any(|e| e.view_count.is_some()));
-        let Some(second) = live("search page 2", || search(&tools, "rick astley", 2)).await else {
+        let Some(second) = live("search page 2", || search(&tools, "rick astley", &plain, 2)).await
+        else {
             return;
         };
         let second = second.entries;
@@ -930,6 +942,41 @@ mod live_tests {
             .iter()
             .filter(|e| !first.iter().any(|f| f.id == e.id));
         assert!(fresh.count() >= second.len() / 2);
+    }
+
+    /// YouTube changes its filters now and then; these must still narrow results.
+    #[tokio::test]
+    #[ignore = "network"]
+    async fn live_search_filters() {
+        use crate::ytdlp::search::{Length, Sort};
+
+        let tools = tools().await;
+        let short = SearchFilters {
+            length: Some(Length::Short),
+            ..Default::default()
+        };
+        if let Some(found) = live("search short", || search(&tools, "timelapse", &short, 1)).await {
+            let durations: Vec<_> = found.entries.iter().filter_map(|e| e.duration).collect();
+            assert!(!durations.is_empty());
+            assert!(durations.iter().all(|d| *d < 240), "{durations:?}");
+        }
+        let popular = SearchFilters {
+            sort: Sort::Views,
+            ..Default::default()
+        };
+        if let Some(found) = live("search popular", || {
+            search(&tools, "rick astley", &popular, 1)
+        })
+        .await
+        {
+            let views: Vec<_> = found
+                .entries
+                .iter()
+                .filter_map(|e| e.view_count)
+                .take(3)
+                .collect();
+            assert!(views.iter().all(|v| *v > 10_000_000), "{views:?}");
+        }
     }
 
     #[tokio::test]

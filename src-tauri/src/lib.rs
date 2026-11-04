@@ -1,7 +1,5 @@
 #[cfg(target_os = "android")]
 mod android;
-#[cfg(desktop)]
-mod browser;
 mod commands;
 mod components;
 mod db;
@@ -114,12 +112,6 @@ fn init_logging(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     net_env::bypass_proxy_for_localhost();
-    let context = tauri::generate_context!();
-    #[cfg(desktop)]
-    if let Some(start) = browser::browser_mode(std::env::args()) {
-        browser::run(context, start);
-        return;
-    }
     let builder = tauri::Builder::default();
     #[cfg(target_os = "android")]
     let builder = builder.plugin(android::init());
@@ -150,8 +142,6 @@ pub fn run() {
             app.manage(components.clone());
             app.manage(create_queue(app.handle(), db, components));
             app.manage(player::Player::new());
-            #[cfg(desktop)]
-            app.manage(browser::Browser::default());
             app.manage(thumbs::ThumbCache::new(
                 app.path().app_cache_dir()?.join("thumbs"),
                 proxy,
@@ -185,7 +175,6 @@ pub fn run() {
             commands::video_probe,
             commands::youtube_search,
             commands::player_url,
-            commands::youtube_open,
             commands::url_inspect,
             commands::thumbnail_cached,
             commands::diagnostics,
@@ -196,7 +185,7 @@ pub fn run() {
             commands::find_duplicates,
             commands::app_quit,
         ])
-        .build(context)
+        .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| match event {
             // Exit without a window close (Cmd+Q on macOS): ask first, like closing.

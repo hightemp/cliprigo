@@ -3,14 +3,13 @@
   import { errorMessage } from "$lib/errors";
   import { formatDuration, formatViews, pluralCount } from "$lib/format";
   import { appendPage } from "$lib/history";
-  import { isAndroid } from "$lib/platform";
+  import { NO_FILTERS, activeFilters, toggleFeature } from "$lib/search";
   import { defaultFormat, duplicatesFor } from "$lib/selection";
   import {
     app,
     copyDetails,
     openInBrowser,
     openInDownload,
-    openYoutube,
     t,
     toast,
     toastError,
@@ -19,6 +18,8 @@
     ACTIVE_STATUSES,
     type DownloadRecord,
     type PlaylistEntry,
+    type SearchFeature,
+    type SearchFilters,
   } from "$lib/types";
   import Icon from "./Icon.svelte";
   import PlayerDialog from "./PlayerDialog.svelte";
@@ -35,6 +36,16 @@
   /** Downloads of the found videos, in any format, newest first. */
   let existing = $state<DownloadRecord[]>([]);
   let watching = $state<PlaylistEntry | null>(null);
+  let filters = $state<SearchFilters>({ ...NO_FILTERS });
+  let showFilters = $state(false);
+  const filterCount = $derived(activeFilters(filters));
+  const FEATURES: SearchFeature[] = ["hd", "4k", "hdr", "subtitles"];
+
+  /** A changed filter searches the last text again at once. */
+  function setFilters(next: SearchFilters) {
+    filters = next;
+    if (searched || query.trim()) search(false);
+  }
   /** Drops answers to an older search when a new one started meanwhile. */
   let requestId = 0;
 
@@ -59,7 +70,11 @@
       existing = [];
     }
     try {
-      const found = await api.youtubeSearch(text, wanted);
+      const found = await api.youtubeSearch(
+        text,
+        $state.snapshot(filters),
+        wanted,
+      );
       if (id !== requestId) return;
       const shown = next ? appendPage(results, found.entries) : found.entries;
       const records = await api
@@ -160,17 +175,105 @@
     <button type="submit" class="btn primary" disabled={!query.trim()}>
       {t("search.submit")}
     </button>
-    {#if !isAndroid}
-      <button
-        type="button"
-        class="btn"
-        onclick={() => openYoutube("https://www.youtube.com/")}
-      >
-        <Icon name="external" size={16} />
-        {t("search.openYoutube")}
-      </button>
-    {/if}
+    <button
+      type="button"
+      class="btn"
+      class:on={showFilters}
+      aria-expanded={showFilters}
+      aria-controls="search-filters"
+      onclick={() => (showFilters = !showFilters)}
+    >
+      <Icon name="filter" size={16} />
+      {t("search.filters.button")}
+      {#if filterCount > 0}<span class="count">{filterCount}</span>{/if}
+    </button>
   </form>
+
+  {#if showFilters}
+    <div class="card filters" id="search-filters">
+      <label>
+        <span class="muted">{t("search.filters.uploadDate")}</span>
+        <select
+          class="input"
+          value={filters.uploadDate ?? ""}
+          onchange={(e) =>
+            setFilters({
+              ...filters,
+              uploadDate: (e.currentTarget.value ||
+                null) as SearchFilters["uploadDate"],
+            })}
+        >
+          <option value="">{t("search.filters.any")}</option>
+          {#each ["hour", "today", "week", "month", "year"] as d (d)}
+            <option value={d}>{t(`search.filters.date.${d}`)}</option>
+          {/each}
+        </select>
+      </label>
+      <label>
+        <span class="muted">{t("search.filters.length")}</span>
+        <select
+          class="input"
+          value={filters.length ?? ""}
+          onchange={(e) =>
+            setFilters({
+              ...filters,
+              length: (e.currentTarget.value ||
+                null) as SearchFilters["length"],
+            })}
+        >
+          <option value="">{t("search.filters.any")}</option>
+          {#each ["short", "medium", "long"] as l (l)}
+            <option value={l}>{t(`search.filters.lengths.${l}`)}</option>
+          {/each}
+        </select>
+      </label>
+      <label>
+        <span class="muted">{t("search.filters.sort")}</span>
+        <select
+          class="input"
+          value={filters.sort}
+          onchange={(e) =>
+            setFilters({
+              ...filters,
+              sort: e.currentTarget.value as SearchFilters["sort"],
+            })}
+        >
+          <option value="relevance"
+            >{t("search.filters.sorts.relevance")}</option
+          >
+          <option value="views">{t("search.filters.sorts.views")}</option>
+        </select>
+      </label>
+      <fieldset>
+        <legend class="muted">{t("search.filters.quality")}</legend>
+        <div class="chips">
+          {#each FEATURES as f (f)}
+            <label class="chip" class:on={filters.features.includes(f)}>
+              <input
+                type="checkbox"
+                checked={filters.features.includes(f)}
+                onchange={() =>
+                  setFilters({
+                    ...filters,
+                    features: toggleFeature(filters.features, f),
+                  })}
+              />
+              {t(`search.filters.features.${f}`)}
+            </label>
+          {/each}
+        </div>
+      </fieldset>
+      {#if filterCount > 0}
+        <button
+          type="button"
+          class="link reset"
+          onclick={() => setFilters({ ...NO_FILTERS, features: [] })}
+        >
+          {t("search.filters.reset")}
+        </button>
+      {/if}
+    </div>
+  {/if}
 
   {#if error}
     <div class="note error">
@@ -311,6 +414,93 @@
     height: 38px;
   }
 
+  .btn.on {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .count {
+    min-width: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-size: 11px;
+    line-height: 18px;
+    text-align: center;
+  }
+
+  .filters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    padding: 12px;
+    align-items: end;
+  }
+
+  .filters > label {
+    display: grid;
+    gap: 4px;
+    font-size: 13px;
+  }
+
+  fieldset {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: 13px;
+  }
+
+  legend {
+    padding: 0;
+    margin-bottom: 6px;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .chip.on {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  .chip input {
+    margin: 0;
+  }
+
+  @media (pointer: coarse) {
+    .chip {
+      min-height: 44px;
+    }
+  }
+
+  .reset {
+    grid-column: 1 / -1;
+    justify-self: start;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    cursor: pointer;
+  }
+
   .note {
     margin: 0;
     padding: 10px 12px;
@@ -437,6 +627,10 @@
 
     .search-input {
       flex-basis: 100%;
+    }
+
+    .filters {
+      grid-template-columns: minmax(0, 1fr);
     }
 
     .search-row .btn {

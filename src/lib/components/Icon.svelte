@@ -14,6 +14,7 @@
     play: "M8 5l11 7-11 7z",
     search: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4",
     check: "M5 12l5 5L19 8",
+    filter: "M4 5h16l-6 8v5l-4 2v-7z",
     warning: "M12 4l9 16H3zM12 10v4M12 17h0",
     video: "M4 6h12v12H4zM16 10l4-2v8l-4-2",
     music:

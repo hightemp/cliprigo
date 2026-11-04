@@ -3,4 +3,5 @@ pub mod errors;
 pub mod probe;
 pub mod progress;
 pub mod runner;
+pub mod search;
 pub mod url;

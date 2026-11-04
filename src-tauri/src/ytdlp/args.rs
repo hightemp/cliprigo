@@ -207,8 +207,13 @@ pub fn probe_args(tools: &Tools, url: &str) -> Vec<OsString> {
 pub const SEARCH_PAGE: u32 = 20;
 
 /// Lists one page (from 1) of YouTube search results, without per-video requests.
-pub fn search_args(tools: &Tools, query: &str, page: u32) -> Vec<OsString> {
-    // ytsearch has no offset: ask for everything up to this page and keep its part.
+pub fn search_args(
+    tools: &Tools,
+    query: &str,
+    filters: &super::search::SearchFilters,
+    page: u32,
+) -> Vec<OsString> {
+    // Results have no offset: list everything up to this page and keep its part.
     let end = page.max(1) * SEARCH_PAGE;
     let mut args = common_args(tools);
     args.extend([
@@ -218,7 +223,7 @@ pub fn search_args(tools: &Tools, query: &str, page: u32) -> Vec<OsString> {
         "--playlist-items".into(),
         format!("{}:{end}", end - SEARCH_PAGE + 1).into(),
     ]);
-    push_url(&mut args, &format!("ytsearch{end}:{query}"));
+    push_url(&mut args, &super::search::results_url(query, filters));
     args
 }
 
@@ -385,16 +390,24 @@ mod tests {
 
     #[test]
     fn search_pages_through_results() {
-        let args = strings(search_args(&test_tools(), "cats in 4k", 1));
+        use crate::ytdlp::search::SearchFilters;
+
+        let filters = SearchFilters::default();
+        let args = strings(search_args(&test_tools(), "cats in 4k", &filters, 1));
         assert!(args.contains(&"-J".to_string()));
         assert!(args.contains(&"--flat-playlist".to_string()));
         assert!(has_pair(&args, "--playlist-items", "1:20"));
-        assert_eq!(&args[args.len() - 2..], ["--", "ytsearch20:cats in 4k"]);
+        assert_eq!(
+            &args[args.len() - 2..],
+            [
+                "--",
+                "https://www.youtube.com/results?search_query=cats+in+4k&sp=EgIQAQ%3D%3D"
+            ]
+        );
 
-        // yt-dlp has no offset for searches: page 2 asks for 40 and keeps 21-40.
-        let args = strings(search_args(&test_tools(), "cats", 2));
+        // Results have no offset: page 2 lists them up to 40 and keeps 21-40.
+        let args = strings(search_args(&test_tools(), "cats", &filters, 2));
         assert!(has_pair(&args, "--playlist-items", "21:40"));
-        assert_eq!(args.last().unwrap(), "ytsearch40:cats");
     }
 
     #[test]
