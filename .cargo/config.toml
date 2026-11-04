@@ -1,0 +1,5 @@
+[env]
+# Wry's WebViewClient doesn't handle a crashed WebView renderer, and WebView then
+# ends the whole app, downloads included. This adds the handler to the generated
+# class, see src-tauri/gen/android/app/src/main/java/com/hightemp/cliprigo/RenderCrash.kt.
+WRY_RUSTWEBVIEWCLIENT_CLASS_EXTENSION = "override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean = RenderCrash.handle(view, detail)"
