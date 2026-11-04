@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>
+      Cliprigo — Free YouTube Downloader for Windows, Mac, Linux &amp; Android
+    </title>
+    <meta
+      name="description"
+      content="Download YouTube videos in 4K, 1080p or as MP3 with a simple free app. Playlists, a download queue and a history of everything you saved. Windows, macOS, Linux and Android. Open source."
+    />
+    <link rel="canonical" href="https://hightemp.github.io/cliprigo/" />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://hightemp.github.io/cliprigo/"
+    />
+    <link
+      rel="alternate"
+      hreflang="ru"
+      href="https://hightemp.github.io/cliprigo/ru/"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://hightemp.github.io/cliprigo/"
+    />
+    <meta name="theme-color" content="#3d5af1" />
+    <meta name="color-scheme" content="light dark" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Cliprigo" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="ru_RU" />
+    <meta property="og:url" content="https://hightemp.github.io/cliprigo/" />
+    <meta
+      property="og:title"
+      content="Cliprigo — free YouTube downloader for every device"
+    />
+    <meta
+      property="og:description"
+      content="4K, 1080p or MP3. Playlists, a download queue and a history of everything you saved. Windows, macOS, Linux and Android."
+    />
+    <meta
+      property="og:image"
+      content="https://hightemp.github.io/cliprigo/assets/img/og-en.png"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Cliprigo app downloading a YouTube video"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="icon" href="favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" href="assets/img/favicon-64.png" />
+    <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png" />
+    <link rel="manifest" href="site.webmanifest" />
+    <link rel="preload" as="image" href="assets/img/download-en.webp" />
+    <link rel="stylesheet" href="assets/site.css" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Cliprigo",
+        "description": "Free, open-source app for downloading YouTube videos, playlists and audio, with a download queue and a history of everything you saved.",
+        "url": "https://hightemp.github.io/cliprigo/",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Windows, macOS, Linux, Android",
+        "image": "https://hightemp.github.io/cliprigo/assets/img/icon-512.png",
+        "screenshot": "https://hightemp.github.io/cliprigo/assets/img/download-en.webp",
+        "downloadUrl": "https://github.com/hightemp/cliprigo/releases/latest",
+        "license": "https://opensource.org/licenses/MIT",
+        "isAccessibleForFree": true,
+        "inLanguage": ["en", "ru"],
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": {
+          "@type": "Person",
+          "name": "hightemp",
+          "url": "https://github.com/hightemp"
+        },
+        "codeRepository": "https://github.com/hightemp/cliprigo"
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Is Cliprigo free?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Cliprigo is free and open source under the MIT license. There are no ads, no accounts and no paid features."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Why does Windows or macOS warn me when I open it?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "The builds are not code-signed yet. On Windows choose More info, then Run anyway. On macOS open System Settings, Privacy & Security and click Open Anyway."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I install Cliprigo on Android?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Download the arm64 APK (or armv7 for older phones), open it and allow installing apps from your browser or file manager when asked. Android 11 or newer is required."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Which formats and qualities can I download?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "MP4 video in the best available quality or a chosen resolution such as 4K, 1440p, 1080p or 720p, with an H.264, AV1 or VP9 codec, and audio only as MP3 or M4A."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What does \"YouTube asked to confirm you're not a bot\" mean?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "YouTube distrusts some networks such as VPNs, hosting providers and some proxies. Try again later or from another network."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Where are downloaded files saved?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "In your Downloads folder by default; you can choose another folder in Settings. On Android files go to Download/Cliprigo."
+            }
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="top">
+      <div class="wrap">
+        <a class="brand" href="./" aria-label="Cliprigo home">
+          <img src="assets/img/icon-192.png" alt="" width="32" height="32" />
+          Cliprigo
+        </a>
+        <nav aria-label="Main">
+          <a href="#features">Features</a>
+          <a href="#android">Android</a>
+          <a href="#download">Download</a>
+          <a href="#faq">FAQ</a>
+          <a class="gh" href="https://github.com/hightemp/cliprigo">GitHub</a>
+          <a
+            class="lang"
+            href="ru/"
+            hreflang="ru"
+            lang="ru"
+            title="Русская версия"
+            >RU</a
+          >
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <div class="hero">
+        <div class="wrap">
+          <div>
+            <span class="eyebrow">Free &amp; open source</span>
+            <h1>Download YouTube videos <span>the easy way</span></h1>
+            <p class="lead">
+              Paste a link, pick a quality and save it — from 4K video to an
+              MP3. Cliprigo keeps a history of everything you downloaded, so
+              nothing gets lost.
+            </p>
+            <div class="cta">
+              <a
+                id="get"
+                class="btn primary big"
+                href="#download"
+                data-windows="Download for Windows"
+                data-macos="Download for macOS"
+                data-linux="Download for Linux"
+                data-android="Download for Android"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+                </svg>
+                <span>Download free</span>
+              </a>
+              <a class="btn big" href="#download">All platforms</a>
+            </div>
+            <p class="cta-note">
+              Latest version <span data-version>v0.1.5</span> · No ads, no
+              account
+            </p>
+            <ul class="platforms" aria-label="Supported systems">
+              <li>Windows 10/11</li>
+              <li>macOS</li>
+              <li>Linux</li>
+              <li>Android 11+</li>
+            </ul>
+          </div>
+          <div class="shots">
+            <div class="window">
+              <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+              <img
+                src="assets/img/download-en.webp"
+                width="900"
+                height="640"
+                alt="Cliprigo on the desktop: a YouTube video ready to download with quality, codec and folder options"
+                fetchpriority="high"
+              />
+            </div>
+            <div class="phone">
+              <img
+                src="assets/img/phone-en.webp"
+                width="412"
+                height="915"
+                alt="Cliprigo on an Android phone"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <section id="features" class="alt" aria-labelledby="features-title">
+        <div class="wrap">
+          <div class="head">
+            <h2 id="features-title">Everything you need to save videos</h2>
+            <p>
+              A friendly app on top of yt-dlp, the most reliable YouTube
+              downloader. No command line, nothing to set up.
+            </p>
+          </div>
+          <div class="grid">
+            <article class="card">
+              <div class="ico">
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                  <path
+                    d="M7 15V9l2.5 3L12 9v6M15 9h2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-2z"
+                  />
+                </svg>
+              </div>
+              <h3>4K, 1080p, 720p or MP3</h3>
+              <p>
+                Best quality MP4, an exact resolution, or audio only as MP3 or
+                M4A. The quality goes into the file name, so versions never
+                overwrite each other.
+              </p>
+            </article>
+            <article class="card">
+              <div class="ico">
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M4 6h11M4 12h11M4 18h7M18 15v6M15 18h6" />
+                </svg>
+              </div>
+              <h3>Playlists and channels</h3>
+              <p>
+                Open a playlist or a channel and tick the videos you want. Ones
+                you already have are marked and unchecked.
+              </p>
+            </article>
+            <article class="card">
+              <div class="ico">
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 7h18M3 12h12M3 17h8" />
+                  <path d="M17 14l4 3-4 3z" />
+                </svg>
+              </div>
+              <h3>Download queue</h3>
+              <p>
+                Several downloads at once with live progress, speed and time
+                left. Canceling cleans up partial files.
+              </p>
+            </article>
+            <article class="card">
+              <div class="ico">
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 7v5l3 2" />
+                  <path d="M3 12a9 9 0 1 0 2.6-6.4M3 4v4h4" />
+                </svg>
+              </div>
+              <h3>History of every download</h3>
+              <p>
+                Search, filter by status and open files in a click. Thumbnails
+                work offline; retry or download again any time.
+              </p>
+            </article>
+            <article class="card">
+              <div class="ico">
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M10 8.5l5 3.5-5 3.5z" />
+                </svg>
+              </div>
+              <h3>Plays everywhere</h3>
+              <p>
+                Choose H.264 for any player, AV1 for the smallest files, or VP9
+                — with a hint on where each one plays.
+              </p>
+            </article>
+            <article class="card">
+              <div class="ico">
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5" />
+                </svg>
+              </div>
+              <h3>Keeps itself working</h3>
+              <p>
+                Downloads yt-dlp and ffmpeg for you, checks their checksums and
+                updates yt-dlp when YouTube changes.
+              </p>
+            </article>
+            <article class="card">
+              <div class="ico">
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M12 9v4M12 17h0M10.3 3.9L2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"
+                  />
+                </svg>
+              </div>
+              <h3>No accidental duplicates</h3>
+              <p>
+                A warning before you download a video that's already in your
+                history or in the queue.
+              </p>
+            </article>
+            <article class="card">
+              <div class="ico">
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
+                  <path d="M9 12l2 2 4-4" />
+                </svg>
+              </div>
+              <h3>Private and open source</h3>
+              <p>
+                No account, no ads. The code is on GitHub under the MIT license.
+                English and Russian, light and dark theme.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="how-title">
+        <div class="wrap">
+          <div class="head">
+            <h2 id="how-title">How to download a YouTube video</h2>
+            <p>Three steps, about ten seconds.</p>
+          </div>
+          <ol class="steps">
+            <li>
+              <h3>Paste the link</h3>
+              <p>
+                Copy a video, playlist or channel link from YouTube and paste it
+                into Cliprigo.
+              </p>
+            </li>
+            <li>
+              <h3>Choose a format</h3>
+              <p>
+                Video or audio only, the quality you need, and a folder if you
+                like.
+              </p>
+            </li>
+            <li>
+              <h3>Download</h3>
+              <p>
+                Watch the progress in the queue. The file lands in your
+                Downloads folder and stays in the history.
+              </p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="alt" aria-labelledby="shots-title">
+        <div class="wrap">
+          <div class="head">
+            <h2 id="shots-title">Simple on purpose</h2>
+            <p>
+              A clean interface that follows your system's light or dark theme.
+            </p>
+          </div>
+          <div class="gallery">
+            <figure>
+              <div class="window">
+                <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+                <img
+                  src="assets/img/playlist-en.webp"
+                  width="900"
+                  height="640"
+                  alt="Choosing videos from a YouTube playlist"
+                  loading="lazy"
+                />
+              </div>
+              <figcaption>Pick videos from a playlist</figcaption>
+            </figure>
+            <figure>
+              <div class="window">
+                <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+                <img
+                  src="assets/img/history-en.webp"
+                  width="900"
+                  height="640"
+                  alt="Download history with search and quick actions"
+                  loading="lazy"
+                />
+              </div>
+              <figcaption>Find anything in the history</figcaption>
+            </figure>
+            <figure>
+              <div class="window">
+                <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+                <img
+                  src="assets/img/settings-en.webp"
+                  width="900"
+                  height="640"
+                  alt="Settings: default quality, codec, folder and proxy"
+                  loading="lazy"
+                />
+              </div>
+              <figcaption>Set your defaults once</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section id="android" aria-labelledby="android-title">
+        <div class="wrap split">
+          <div>
+            <div class="head">
+              <h2 id="android-title">YouTube downloader for Android</h2>
+              <p>
+                The same app on your phone — no root and no Google account
+                needed.
+              </p>
+            </div>
+            <ul class="checks">
+              <li>
+                <strong>Keeps downloading in the background</strong> while you
+                use other apps, with a progress notification.
+              </li>
+              <li>
+                <strong>Saves to Download/Cliprigo,</strong> easy to find in any
+                file manager and open in your video player.
+              </li>
+              <li>
+                <strong>Everything built in:</strong> ffmpeg and the rest come
+                with the app; only yt-dlp (about 3 MB) is fetched on first
+                start.
+              </li>
+              <li>
+                <strong>Android 11 or newer,</strong> arm64 for most phones and
+                armv7 for older ones.
+              </li>
+            </ul>
+            <a
+              class="btn primary"
+              href="https://github.com/hightemp/cliprigo/releases/download/v0.1.5/Cliprigo_0.1.5_android_arm64.apk"
+              data-asset="_android_arm64\.apk$"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+              </svg>
+              Download APK
+            </a>
+          </div>
+          <div class="phone">
+            <img
+              src="assets/img/phone-en.webp"
+              width="412"
+              height="915"
+              alt="Cliprigo for Android: choosing the quality of a video"
+              loading="lazy"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section id="download" class="alt" aria-labelledby="download-title">
+        <div class="wrap">
+          <div class="head">
+            <h2 id="download-title">Download Cliprigo</h2>
+            <p>
+              Free for every system. Version <span data-version>v0.1.5</span>.
+            </p>
+          </div>
+          <div class="dl-grid">
+            <div class="dl" id="dl-windows">
+              <h3>
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="3" y="4" width="18" height="13" rx="2" />
+                  <path d="M8 21h8M12 17v4" />
+                </svg>
+                Windows
+              </h3>
+              <p class="req">Windows 10 and 11</p>
+              <div class="links">
+                <a
+                  class="main"
+                  href="https://github.com/hightemp/cliprigo/releases/download/v0.1.5/Cliprigo_0.1.5_x64-setup.exe"
+                  data-asset="_x64-setup\.exe$"
+                  >Installer x64 <small>.exe</small></a
+                >
+                <a
+                  href="https://github.com/hightemp/cliprigo/releases/download/v0.1.5/Cliprigo_0.1.5_arm64-setup.exe"
+                  data-asset="_arm64-setup\.exe$"
+                  data-arm
+                  >Installer ARM64 <small>.exe</small></a
+                >
+                <a
+                  href="https://github.com/hightemp/cliprigo/releases/download/v0.1.5/Cliprigo_0.1.5_x64_en-US.msi"
+                  data-asset="_x64_en-US\.msi$"
+                  >MSI x64 <small>.msi</small></a
+                >
+              </div>
+            </div>
+            <div class="dl" id="dl-macos">
+              <h3>
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="4" y="5" width="16" height="11" rx="2" />
+                  <path d="M2 19h20" />
+                </svg>
+                macOS
+              </h3>
+              <p class="req">Apple Silicon and Intel Macs</p>
+              <div class="links">
+                <a
+                  class="main"
+                  href="https://github.com/hightemp/cliprigo/releases/download/v0.1.5/Cliprigo_0.1.5_aarch64.dmg"
+                  data-asset="_aarch64\.dmg$"
+                  >Apple Silicon <small>.dmg</small></a
+                >
+                <a
+                  href="https://github.com/hightemp/cliprigo/releases/download/v0.1.5/Cliprigo_0.1.5_x64.dmg"
+                  data-asset="_x64\.dmg$"
+                  >Intel <small>.dmg</small></a
+                >
+              </div>
+            </div>
+            <div class="dl" id="dl-linux">
+              <h3>
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="3" y="4" width="18" height="16" rx="2" />
+                  <path d="M7 9l3 3-3 3M13 15h4" />
+                </svg>
+                Linux
+              </h3>
+              <p class="req">x64 and ARM64</p>
+              <div class="links">
+                <a
+                  class="main"
+                  href="https://github.com/hightemp/cliprigo/releases/download/v0.1.5/Cliprigo_0.1.5_amd64.AppImage"
+                  data-asset="_amd64\.AppImage$"
+                  >AppImage x64 <small>.AppImage</small></a
+                >
+                <a
+                  href="https://github.com/hightemp/cliprigo/releases/download/v0.1.5/Cliprigo_0.1.5_amd64.deb"
+                  data-asset="_amd64\.deb$"
+                  >Debian, Ubuntu x64 <small>.deb</small></a
+                >
+                <a
+                  href="https://github.com/hightemp/cliprigo/releases/download/v0.1.5/Cliprigo-0.1.5-1.x86_64.rpm"
+                  data-asset="\.x86_64\.rpm$"
+                  >Fedora, openSUSE x64 <small>.rpm</small></a
+                >
+                <a
+                  href="https://github.com/hightemp/cliprigo/releases/download/v0.1.5/Cliprigo_0.1.5_aarch64.AppImage"
+                  data-asset="_aarch64\.AppImage$"
+                  data-arm
+                  >AppImage ARM64 <small>.AppImage</small></a
+                >
+              </div>
+            </div>
+            <div class="dl" id="dl-android">
+              <h3>
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="6" y="2" width="12" height="20" rx="2.5" />
+                  <path d="M11 18h2" />
+                </svg>
+                Android
+              </h3>
+              <p class="req">Android 11 or newer</p>
+              <div class="links">
+                <a
+                  class="main"
+                  href="https://github.com/hightemp/cliprigo/releases/download/v0.1.5/Cliprigo_0.1.5_android_arm64.apk"
+                  data-asset="_android_arm64\.apk$"
+                  >Most phones (arm64) <small>.apk</small></a
+                >
+                <a
+                  href="https://github.com/hightemp/cliprigo/releases/download/v0.1.5/Cliprigo_0.1.5_android_armv7.apk"
+                  data-asset="_android_armv7\.apk$"
+                  >Older phones (armv7) <small>.apk</small></a
+                >
+              </div>
+            </div>
+          </div>
+          <p class="dl-meta">
+            Other files (ARM64 .deb, .rpm and .msi) are on the
+            <a href="https://github.com/hightemp/cliprigo/releases/latest"
+              >releases page</a
+            >.
+          </p>
+        </div>
+      </section>
+
+      <section id="faq" aria-labelledby="faq-title">
+        <div class="wrap">
+          <div class="head">
+            <h2 id="faq-title">Questions and answers</h2>
+          </div>
+          <div class="faq">
+            <details>
+              <summary>Is Cliprigo free?</summary>
+              <div>
+                <p>
+                  Yes. Cliprigo is free and open source under the MIT license.
+                  There are no ads, no accounts and no paid features.
+                </p>
+              </div>
+            </details>
+            <details>
+              <summary>
+                Why does Windows or macOS warn me when I open it?
+              </summary>
+              <div>
+                <p>
+                  The builds are not code-signed yet, so the system shows a
+                  warning on first launch.
+                </p>
+                <p>
+                  <strong>Windows:</strong> “Windows protected your PC” →
+                  <strong>More info</strong> → <strong>Run anyway</strong>.
+                </p>
+                <p>
+                  <strong>macOS:</strong> <strong>System Settings</strong> →
+                  <strong>Privacy &amp; Security</strong> →
+                  <strong>Open Anyway</strong>, or run
+                  <code
+                    >xattr -dr com.apple.quarantine
+                    /Applications/Cliprigo.app</code
+                  >
+                  in Terminal.
+                </p>
+              </div>
+            </details>
+            <details>
+              <summary>How do I install Cliprigo on Android?</summary>
+              <div>
+                <p>
+                  Download the arm64 APK (or armv7 for older phones), open it
+                  and allow installing apps from your browser or file manager
+                  when asked. Android 11 or newer is required.
+                </p>
+              </div>
+            </details>
+            <details>
+              <summary>Which formats and qualities can I download?</summary>
+              <div>
+                <p>
+                  MP4 video in the best available quality or a chosen resolution
+                  such as 4K, 1440p, 1080p or 720p, with an H.264, AV1 or VP9
+                  codec, and audio only as MP3 or M4A.
+                </p>
+              </div>
+            </details>
+            <details>
+              <summary>
+                What does “YouTube asked to confirm you're not a bot” mean?
+              </summary>
+              <div>
+                <p>
+                  YouTube distrusts some networks such as VPNs, hosting
+                  providers and some proxies. Try again later or from another
+                  network.
+                </p>
+              </div>
+            </details>
+            <details>
+              <summary>Where are downloaded files saved?</summary>
+              <div>
+                <p>
+                  In your Downloads folder by default; you can choose another
+                  folder in Settings. On Android files go to Download/Cliprigo.
+                </p>
+              </div>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section class="final" aria-labelledby="final-title">
+        <div class="wrap">
+          <div class="box">
+            <h2 id="final-title">Start saving your favorite videos</h2>
+            <p>Free, open source and ready in a minute.</p>
+            <div class="cta">
+              <a class="btn big" href="#download">Download Cliprigo</a>
+              <a
+                class="btn big ghost"
+                href="https://github.com/hightemp/cliprigo"
+                >View on GitHub</a
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <nav aria-label="Footer">
+          <a href="https://github.com/hightemp/cliprigo">GitHub</a>
+          <a href="https://github.com/hightemp/cliprigo/releases">Releases</a>
+          <a href="https://github.com/hightemp/cliprigo/issues"
+            >Report a problem</a
+          >
+          <a href="https://github.com/hightemp/cliprigo/blob/main/LICENSE"
+            >MIT License</a
+          >
+          <a href="ru/" hreflang="ru" lang="ru">Русский</a>
+        </nav>
+        <p>
+          Cliprigo is built on
+          <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a> and
+          <a href="https://ffmpeg.org/">ffmpeg</a>. It is not affiliated with
+          YouTube or Google. Only download content you have the right to, and
+          respect the terms of service of the sites you use.
+        </p>
+      </div>
+    </footer>
+
+    <script src="assets/site.js" defer></script>
+  </body>
+</html>
