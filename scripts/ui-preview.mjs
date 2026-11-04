@@ -9,7 +9,8 @@
 //   node scripts/ui-preview.mjs [output-dir]
 //
 // Env: CHROME_PATH (default /usr/bin/google-chrome), PREVIEW_PORT (default 1430),
-// PREVIEW_MOBILE=1 (an Android phone: narrow touch screen, Android user agent).
+// PREVIEW_MOBILE=1 (an Android phone: narrow touch screen, Android user agent),
+// PREVIEW_THEME=light|dark (one theme for every scenario, e.g. for site screenshots).
 
 import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
@@ -21,6 +22,7 @@ const PORT = Number(process.env.PREVIEW_PORT ?? 1430);
 const CHROME = process.env.CHROME_PATH ?? "/usr/bin/google-chrome";
 const BASE = `http://127.0.0.1:${PORT}/`;
 const MOBILE = process.env.PREVIEW_MOBILE === "1";
+const THEME = process.env.PREVIEW_THEME;
 const VIEWPORT = MOBILE
   ? {
       viewport: { width: 412, height: 915 },
@@ -956,7 +958,7 @@ try {
   for (const scenario of scenarios) {
     const context = await browser.newContext({
       ...VIEWPORT,
-      colorScheme: scenario.theme,
+      colorScheme: THEME ?? scenario.theme,
     });
     const page = await context.newPage();
     const errors = [];
