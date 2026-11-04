@@ -70,7 +70,6 @@
       {t("subtitles.button")}
     </button>
     <span class="spacer"></span>
-    <button class="btn" onclick={onclose}>{t("common.close")}</button>
     {#if !entry.live}
       <button class="btn" data-tip={t("search.queueHint")} onclick={onqueue}>
         {t("search.queue")}
