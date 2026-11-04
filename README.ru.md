@@ -94,6 +94,8 @@ pnpm ui:preview     # UI-сценарии в headless Chrome со скриншо
 PREVIEW_MOBILE=1 pnpm ui:preview  # то же в размере телефона
 ```
 
+Те же команды есть в Makefile: `make` покажет их список (`make lint` вдобавок запускает rustfmt и clippy, как в CI).
+
 Для Android нужны Android SDK и NDK (`ANDROID_HOME`, `NDK_HOME`) и JDK 21: `pnpm tauri android build --apk --target aarch64`. Сборка скачивает Python, ffmpeg и QuickJS для Android из [youtubedl-android](https://github.com/yausername/youtubedl-android) и сверяет их с закреплёнными SHA-256 (см. `src-tauri/gen/android/app/build.gradle.kts`).
 
 Rust-тесты: `cargo test` в `src-tauri`. Сквозные тесты с настоящим YouTube запускаются отдельно:
