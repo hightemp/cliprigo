@@ -248,8 +248,6 @@
         <Icon name="download" size={16} />
         {t("subtitles.save")}
       </button>
-    {:else}
-      <button class="btn" onclick={onclose}>{t("common.close")}</button>
     {/if}
   {/snippet}
 </Dialog>

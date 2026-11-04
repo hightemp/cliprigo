@@ -1514,9 +1514,7 @@ const scenarios = [
       await dialog.getByRole("button", { name: "Очистить историю" }).click();
       await check.call("search_history_clear");
       await check.text("Здесь появятся ваши поиски");
-      await dialog
-        .getByRole("button", { name: "Закрыть", exact: true })
-        .click();
+      await dialog.getByRole("button", { name: "Закрыть окно" }).click();
       check.equal(
         await page.getByRole("list", { name: "Недавние запросы" }).count(),
         0,

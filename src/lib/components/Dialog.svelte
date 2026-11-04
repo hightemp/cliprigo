@@ -96,6 +96,11 @@
     color: var(--muted);
   }
 
+  /* Nothing to do but close, which the cross does. */
+  .actions:empty {
+    display: none;
+  }
+
   .actions {
     display: flex;
     justify-content: flex-end;

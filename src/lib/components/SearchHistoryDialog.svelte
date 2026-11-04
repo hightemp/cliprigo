@@ -176,7 +176,6 @@
         {t("search.history.clear")}
       </button>
     {/if}
-    <button class="btn" onclick={onclose}>{t("common.close")}</button>
   {/snippet}
 </Dialog>
 
