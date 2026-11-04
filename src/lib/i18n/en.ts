@@ -134,6 +134,7 @@ export const en = {
     },
   },
   subtitles: {
+    dontSave: "Don't save",
     button: "Subtitles",
     title: "Subtitles",
     language: "Language",

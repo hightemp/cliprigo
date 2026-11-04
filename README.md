@@ -27,6 +27,7 @@ Cliprigo is a friendly front end for [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 
 - **Paste a link, pick a format, download.** Best quality MP4, a specific resolution (4K, 1080p, 720p…), or audio only as MP3/M4A.
 - **Search YouTube and watch in the app.** Filter by upload date, length and quality (HD, 4K, HDR, subtitles), sort by relevance or popularity. Find a video, play it right in Cliprigo, then download it or add it to the queue in the default format.
+- **Subtitles.** Read a video's subtitles (the author's, recognized speech or YouTube's translation) in a window with search, copy all or just the selected part, or save them as TXT, SRT or VTT. A single video can also be downloaded with subtitles saved next to it as SRT.
 - **Search history.** Recent searches are suggested as you type, and the History button lists every past search on the left with the videos it found on the right, to look through them again or search again with the same filters. Can be turned off or cleared in Settings.
 - **Favorites.** Star videos in search or in the player to keep them for later: filter them, watch, download or queue them all at once.
 - **Codec choice with a hint on where it plays:** Auto, H.264 (opens in any player), AV1 (smallest files) or VP9. Plain HTTPS formats are preferred over slow HLS streams.

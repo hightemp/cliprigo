@@ -53,6 +53,8 @@
   let duplicateOf = $state<DownloadRecord | null>(null);
   let adding = $state(false);
   let subtitlesOpen = $state(false);
+  /** Subtitles to save next to a single video. */
+  let subtitleLang = $state<string | null>(null);
   /** Ignores results of an older probe when a newer link was pasted meanwhile. */
   let probeToken = 0;
 
@@ -111,6 +113,7 @@
         );
       }
       result = probed;
+      subtitleLang = null;
     } catch (err) {
       if (token === probeToken) {
         probeError = errorMessage(err, t);
@@ -168,6 +171,10 @@
       playlistTitle: playlist?.title ?? null,
       format: buildFormat(mode, quality, codec, audio),
       outputDir,
+      subtitles:
+        playlist === null && mode === "video" && subtitleLang
+          ? [subtitleLang]
+          : [],
     };
   }
 
@@ -373,6 +380,8 @@
 
       <FormatPicker
         {heights}
+        subtitleTracks={result.type === "video" ? result.subtitles : []}
+        bind:subtitleLang
         bind:mode
         bind:quality
         bind:codec

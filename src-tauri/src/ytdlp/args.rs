@@ -167,6 +167,8 @@ pub struct DownloadRequest {
     pub format: Format,
     pub output_dir: PathBuf,
     pub filename_template: String,
+    /// Languages of subtitles to save next to the video (yt-dlp codes).
+    pub subtitles: Vec<String>,
 }
 
 /// Options shared by every invocation: ignore user config files, use our bundled tools.
@@ -280,6 +282,27 @@ pub fn download_args(tools: &Tools, req: &DownloadRequest) -> Vec<OsString> {
         }
         Format::AudioM4a => push(&["-f", "ba[ext=m4a]/ba/b", "-x", "--audio-format", "m4a"]),
     }
+    // --sub-langs takes regular expressions: only plain language codes go in.
+    let langs: Vec<&str> = req
+        .subtitles
+        .iter()
+        .map(String::as_str)
+        .filter(|l| !l.is_empty() && l.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
+        .collect();
+    if !langs.is_empty() {
+        // The author's subtitles where there are, else recognized speech.
+        args.extend(
+            [
+                "--write-subs",
+                "--write-auto-subs",
+                "--sub-langs",
+                &langs.join(","),
+                "--convert-subs",
+                "srt",
+            ]
+            .map(OsString::from),
+        );
+    }
     args.push("-P".into());
     args.push(req.output_dir.clone().into());
     push_url(&mut args, &req.url);
@@ -337,7 +360,34 @@ mod tests {
             format,
             output_dir: PathBuf::from("/home/u/Downloads"),
             filename_template: "%(title)s [%(id)s].%(ext)s".into(),
+            subtitles: Vec::new(),
         }
+    }
+
+    #[test]
+    fn subtitles_are_saved_next_to_the_video() {
+        let mut req = request(Format::Video {
+            max_height: None,
+            codec: Codec::Auto,
+        });
+        let args = strings(download_args(&test_tools(), &req));
+        assert!(!args.iter().any(|a| a.contains("sub")), "{args:?}");
+
+        // The author's when there are, else recognized speech; as SRT files.
+        req.subtitles = vec!["en".into(), "pt-BR".into(), "en-orig".into()];
+        let args = strings(download_args(&test_tools(), &req));
+        assert!(args.contains(&"--write-subs".to_string()));
+        assert!(args.contains(&"--write-auto-subs".to_string()));
+        assert!(has_pair(&args, "--sub-langs", "en,pt-BR,en-orig"));
+        assert!(has_pair(&args, "--convert-subs", "srt"));
+
+        // --sub-langs takes regular expressions: anything but a language code is dropped.
+        req.subtitles = vec!["all".into(), ".*".into(), "ru".into()];
+        let args = strings(download_args(&test_tools(), &req));
+        assert!(has_pair(&args, "--sub-langs", "all,ru"));
+        req.subtitles = vec![".*".into()];
+        let args = strings(download_args(&test_tools(), &req));
+        assert!(!args.contains(&"--write-subs".to_string()));
     }
 
     #[test]

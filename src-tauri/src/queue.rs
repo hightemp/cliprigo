@@ -60,6 +60,9 @@ pub struct QueueItemInput {
     pub format: Format,
     /// Defaults to the download folder from settings.
     pub output_dir: Option<String>,
+    /// Languages of subtitles to save next to the video.
+    #[serde(default)]
+    pub subtitles: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -169,6 +172,7 @@ impl Queue {
                 format: item.format,
                 output_dir: PathBuf::from(&output_dir),
                 filename_template: settings.filename_template.clone(),
+                subtitles: item.subtitles.clone(),
             };
             let target = Target::new(item.video_id.as_deref(), &request);
             if self.inner.state().is_taken(&target) {
@@ -188,6 +192,7 @@ impl Queue {
                 playlist_id: item.playlist_id,
                 playlist_title: item.playlist_title,
                 output_dir: Some(output_dir),
+                subtitles: (!item.subtitles.is_empty()).then(|| item.subtitles.join(",")),
             })?;
             self.inner.enqueue(record.id, request, target);
             (self.inner.sink)(QueueEvent::Status {
@@ -258,6 +263,11 @@ impl Queue {
             format,
             output_dir: PathBuf::from(record.output_dir.clone().unwrap_or(settings.download_dir)),
             filename_template: settings.filename_template,
+            subtitles: record
+                .subtitles
+                .as_deref()
+                .map(|s| s.split(',').map(String::from).collect())
+                .unwrap_or_default(),
         };
         let target = Target::new(record.video_id.as_deref(), &request);
         // Check and claim under one lock: a double click sends two retries at once.
@@ -644,6 +654,7 @@ mod tests {
                 codec: Codec::Auto,
             },
             output_dir: None,
+            subtitles: Vec::new(),
         }
     }
 
@@ -842,6 +853,23 @@ mod tests {
         assert_eq!(r.error, None);
         h.until_idle().await;
         assert_eq!(h.status(id), DownloadStatus::Completed);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn subtitles_are_kept_for_a_retry() {
+        let h = harness(2);
+        let mut input = item("fake://fail/subs");
+        input.subtitles = vec!["en".into(), "ru".into()];
+        let added = h.queue.add(vec![input]).unwrap();
+        assert_eq!(added[0].subtitles.as_deref(), Some("en,ru"));
+        h.until_idle().await;
+        h.queue.retry(added[0].id).unwrap();
+        h.until_idle().await;
+        let calls = h.fake.calls.lock().unwrap().clone();
+        assert_eq!(calls.len(), 2);
+        for call in calls {
+            assert_eq!(call.subtitles, ["en", "ru"]);
+        }
     }
 
     #[tokio::test(start_paused = true)]
@@ -1152,6 +1180,7 @@ mod live_tests {
             playlist_title: None,
             format,
             output_dir: None,
+            subtitles: Vec::new(),
         };
         let ids: Vec<i64> = queue
             .add(vec![

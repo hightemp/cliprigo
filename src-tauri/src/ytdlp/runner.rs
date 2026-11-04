@@ -453,6 +453,7 @@ mod tests {
             },
             output_dir: out.to_path_buf(),
             filename_template: "%(title)s [%(id)s].%(ext)s".into(),
+            subtitles: Vec::new(),
         }
     }
 
@@ -901,6 +902,7 @@ mod live_tests {
             format,
             output_dir: dir.to_path_buf(),
             filename_template: "%(title)s [%(id)s].%(ext)s".into(),
+            subtitles: Vec::new(),
         }
     }
 
@@ -1044,6 +1046,43 @@ mod live_tests {
             };
             assert!(p.entries.len() >= 10, "{}", p.entries.len());
         }
+    }
+
+    /// Subtitles land next to the video as SRT, named like it.
+    #[tokio::test]
+    #[ignore = "network"]
+    async fn live_download_with_subtitles() {
+        let tools = tools().await;
+        let dir = tempfile::tempdir().unwrap();
+        let mut req = request(
+            VIDEOS[0],
+            Format::Video {
+                max_height: Some(144),
+                codec: Codec::Auto,
+            },
+            dir.path(),
+        );
+        req.subtitles = vec!["en".into()];
+        let Some(outcome) = live("download with subtitles", || {
+            download(&tools, &req, CancellationToken::new(), |_| {})
+        })
+        .await
+        else {
+            return;
+        };
+        let Outcome::Completed { path, .. } = outcome else {
+            panic!("expected completion");
+        };
+        let files = files_in(dir.path());
+        assert_eq!(files.len(), 2, "{files:?}");
+        let stem = path.file_stem().unwrap().to_string_lossy().into_owned();
+        let srt = dir.path().join(format!("{stem}.en.srt"));
+        let text = std::fs::read_to_string(&srt).unwrap_or_else(|e| panic!("{files:?}: {e}"));
+        assert!(
+            text.starts_with("1\n00:00:"),
+            "{}",
+            &text[..text.len().min(80)]
+        );
     }
 
     #[tokio::test]

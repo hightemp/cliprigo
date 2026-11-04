@@ -142,6 +142,7 @@ export const ru: Messages = {
     },
   },
   subtitles: {
+    dontSave: "Не сохранять",
     button: "Субтитры",
     title: "Субтитры",
     language: "Язык",

@@ -1671,6 +1671,32 @@ const scenarios = [
     },
   },
   {
+    name: "38-download-subtitles",
+    responses: ready("ru", {
+      video_probe: { ...VIDEO, subtitles: SUB_TRACKS },
+      queue_add: [record(12)],
+    }),
+    async run(page, check) {
+      await page.fill("input[type=url]", VIDEO.url);
+      await page.keyboard.press("Enter");
+      await check.text(VIDEO.title);
+      const subs = page.getByRole("combobox", { name: /^Субтитры/ });
+      check.equal((await subs.textContent()).trim(), "Не сохранять");
+      await check.choose(subs, { label: "English" });
+      await page.screenshot({ path: `${OUT}/38-download-subtitles-video.png` });
+      await page.getByRole("button", { name: "Скачать" }).last().click();
+      const added = await check.call("queue_add");
+      check.equal(added.args.items[0].subtitles, ["en"]);
+
+      // Audio has no subtitles to go with.
+      await page.fill("input[type=url]", VIDEO.url);
+      await page.keyboard.press("Enter");
+      await check.text(VIDEO.title);
+      await page.getByRole("radio", { name: "Только звук" }).click();
+      check.equal(await subs.count(), 0, "no picker for audio");
+    },
+  },
+  {
     name: "25-android-share",
     theme: "light",
     responses: ready("ru", {

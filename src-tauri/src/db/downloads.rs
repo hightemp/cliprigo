@@ -74,6 +74,8 @@ pub struct DownloadRecord {
     pub output_dir: Option<String>,
     /// Video codec preference (`auto`, `h264`, `av1`, `vp9`); `None` for audio and old rows.
     pub codec: Option<String>,
+    /// Subtitle languages saved with the video, comma-separated.
+    pub subtitles: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -91,6 +93,7 @@ pub struct NewDownload {
     pub playlist_title: Option<String>,
     pub output_dir: Option<String>,
     pub codec: Option<String>,
+    pub subtitles: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -105,7 +108,7 @@ pub struct HistoryQuery {
 
 const COLUMNS: &str = "id, video_id, url, title, uploader, duration, thumbnail_url, format, \
     quality, file_path, file_size, status, error, playlist_id, playlist_title, created_at, \
-    completed_at, output_dir, codec";
+    completed_at, output_dir, codec, subtitles";
 
 const DEFAULT_LIMIT: i64 = 50;
 const MAX_LIMIT: i64 = 500;
@@ -134,6 +137,7 @@ fn from_row(row: &Row) -> rusqlite::Result<DownloadRecord> {
         completed_at: row.get(16)?,
         output_dir: row.get(17)?,
         codec: row.get(18)?,
+        subtitles: row.get(19)?,
     })
 }
 
@@ -142,8 +146,8 @@ impl Db {
         let conn = self.conn();
         conn.execute(
             "INSERT INTO downloads (video_id, url, title, uploader, duration, thumbnail_url, \
-             format, quality, status, playlist_id, playlist_title, created_at, output_dir, codec) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+             format, quality, status, playlist_id, playlist_title, created_at, output_dir, codec, \
+             subtitles) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
             params![
                 d.video_id,
                 d.url,
@@ -159,6 +163,7 @@ impl Db {
                 now_unix(),
                 d.output_dir,
                 d.codec,
+                d.subtitles,
             ],
         )?;
         let id = conn.last_insert_rowid();

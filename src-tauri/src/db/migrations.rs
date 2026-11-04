@@ -82,6 +82,10 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE favorites ADD COLUMN published INTEGER;
     ALTER TABLE search_results ADD COLUMN published INTEGER;
     "#,
+    // 7: subtitle languages saved with a video
+    r#"
+    ALTER TABLE downloads ADD COLUMN subtitles TEXT;
+    "#,
 ];
 
 pub fn run(conn: &mut Connection) -> AppResult<()> {

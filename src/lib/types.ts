@@ -28,6 +28,8 @@ export interface DownloadRecord {
   quality: number | null;
   /** Video codec preference; null for audio and records from before codecs. */
   codec: string | null;
+  /** Subtitle languages saved with the video, comma-separated. */
+  subtitles?: string | null;
   filePath: string | null;
   fileSize: number | null;
   status: DownloadStatus;
@@ -90,6 +92,8 @@ export interface QueueItemInput {
   playlistTitle: string | null;
   format: Format;
   outputDir: string | null;
+  /** Subtitle languages to save next to the video. */
+  subtitles?: string[];
 }
 
 export type Language = "system" | "ru" | "en";

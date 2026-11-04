@@ -4,7 +4,8 @@
   import { isAndroid } from "$lib/platform";
   import { radioKey } from "$lib/radio";
   import { qualityOptions, type AudioFormat, type Mode } from "$lib/selection";
-  import { CODECS, type Codec } from "$lib/types";
+  import { trackLabel } from "$lib/subtitles";
+  import { CODECS, type Codec, type SubtitleTrack } from "$lib/types";
   import { app, t, toastError } from "$lib/state.svelte";
   import Icon from "./Icon.svelte";
   import Select from "./Select.svelte";
@@ -16,6 +17,8 @@
     codec = $bindable(),
     audio = $bindable(),
     outputDir = $bindable(),
+    subtitleTracks = [],
+    subtitleLang = $bindable(null),
   }: {
     heights: number[];
     mode: Mode;
@@ -23,6 +26,9 @@
     codec: Codec;
     audio: AudioFormat;
     outputDir: string | null;
+    /** A single video's subtitles, to save one language next to it. */
+    subtitleTracks?: SubtitleTrack[];
+    subtitleLang?: string | null;
   } = $props();
 
   const options = $derived(qualityOptions(heights));
@@ -96,6 +102,21 @@
         }))}
       />
     </label>
+    {#if subtitleTracks.length > 0}
+      <label>
+        <span class="muted">{t("subtitles.title")}</span>
+        <Select
+          bind:value={subtitleLang}
+          options={[
+            { value: null, label: t("subtitles.dontSave") },
+            ...subtitleTracks.map((tr) => ({
+              value: tr.lang,
+              label: trackLabel(tr, t),
+            })),
+          ]}
+        />
+      </label>
+    {/if}
   {:else}
     <label>
       <span class="muted">{t("download.audioFormat")}</span>
