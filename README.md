@@ -26,6 +26,8 @@ Cliprigo is a friendly front end for [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 ## Features
 
 - **Paste a link, pick a format, download.** Best quality MP4, a specific resolution (4K, 1080p, 720p…), or audio only as MP3/M4A.
+- **Search YouTube and watch in the app.** Find a video, play it right in Cliprigo, then download it or add it to the queue in the default format.
+- **The YouTube site in its own window** (Windows, macOS, Linux): browse as usual, sign in if you like, and press **Download in Cliprigo** on a video, playlist or channel. The window runs as a separate process, so a crash there never stops your downloads.
 - **Codec choice with a hint on where it plays:** Auto, H.264 (opens in any player), AV1 (smallest files) or VP9. Plain HTTPS formats are preferred over slow HLS streams.
 - **Playlists and channels.** Pick the videos you want; ones you already have are marked and unchecked.
 - **Download queue** with a configurable number of parallel downloads, live progress, speed and time left. Canceling removes partial files.
@@ -62,7 +64,7 @@ Releases are not code-signed yet, so the system warns on first launch:
 
 ### Android
 
-Open the `.apk` on the phone and allow installing apps from your browser or file manager when asked. ffmpeg and QuickJS (instead of Deno) are built into the app; only yt-dlp (about 3 MB) is downloaded on first start. Files are saved to **Download/Cliprigo**. While downloads run, a notification keeps them going when you switch to another app.
+Open the `.apk` on the phone and allow installing apps from your browser or file manager when asked. ffmpeg and QuickJS (instead of Deno) are built into the app; only yt-dlp (about 3 MB) is downloaded on first start. Files are saved to **Download/Cliprigo**. While downloads run, a notification keeps them going when you switch to another app. To download from the YouTube app, tap **Share** → **Cliprigo**: the video opens in Cliprigo, ready to pick a format.
 
 ## Where things are stored
 
