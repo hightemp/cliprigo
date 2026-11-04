@@ -11,7 +11,7 @@ use crate::db::{Db, DownloadRecord, DownloadStatus, HistoryQuery, Settings};
 use crate::error::{AppError, AppResult};
 use crate::queue::{Queue, QueueEntry, QueueItemInput};
 use crate::ytdlp;
-use crate::ytdlp::probe::ProbeResult;
+use crate::ytdlp::probe::{ProbeResult, SearchPage};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -149,6 +149,62 @@ pub async fn video_probe(
     ytdlp::runner::probe(&tools, &ytdlp::url::normalize(&url)).await
 }
 
+/// One page (from 1) of YouTube search results.
+#[tauri::command]
+pub async fn youtube_search(
+    manager: State<'_, Arc<ComponentManager>>,
+    query: String,
+    page: u32,
+) -> AppResult<SearchPage> {
+    let query = query.trim();
+    if query.is_empty() {
+        return Ok(SearchPage {
+            entries: Vec::new(),
+            has_more: false,
+        });
+    }
+    let tools = manager.tools()?;
+    ytdlp::runner::search(&tools, query, page).await
+}
+
+/// Address of a local page that plays `video_id` inside the app (see player.rs).
+#[tauri::command]
+pub async fn player_url(
+    player: State<'_, crate::player::Player>,
+    video_id: String,
+    lang: String,
+) -> AppResult<String> {
+    let server = player
+        .get_or_try_init(crate::player::PlayerServer::start)
+        .await?;
+    server
+        .url(&video_id, &lang)
+        .ok_or_else(|| AppError::Other(format!("not a YouTube video id: {video_id}")))
+}
+
+/// Shows a YouTube page in the app's YouTube window; `label` is its download button.
+/// Android has no such window: links open in the YouTube app there.
+#[tauri::command]
+pub fn youtube_open(
+    app: AppHandle,
+    proxy: State<'_, crate::net::ProxySetting>,
+    url: String,
+    label: String,
+) -> AppResult<()> {
+    if !ytdlp::url::is_youtube(&url) {
+        return Err(AppError::Other(format!("not a YouTube link: {url}")));
+    }
+    #[cfg(desktop)]
+    return app
+        .state::<crate::browser::Browser>()
+        .open(&app, &url, &label, proxy.get());
+    #[cfg(mobile)]
+    {
+        let _ = (app, proxy, label);
+        Err(AppError::UnsupportedPlatform("YouTube window".into()))
+    }
+}
+
 // Queue commands are async so they run inside the Tauri runtime the queue spawns onto.
 
 #[tauri::command]
@@ -283,6 +339,20 @@ pub fn keep_alive(app: AppHandle, text: Option<String>) -> AppResult<()> {
     {
         let _ = (app, text);
         Ok(())
+    }
+}
+
+/// Text shared to the app from another one on Android, once; `None` elsewhere.
+#[tauri::command]
+pub fn shared_take(app: AppHandle) -> AppResult<Option<String>> {
+    #[cfg(target_os = "android")]
+    return app
+        .state::<crate::android::Platform<tauri::Wry>>()
+        .take_shared();
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        Ok(None)
     }
 }
 

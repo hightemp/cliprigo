@@ -120,6 +120,15 @@
     }
   }
 
+  // A link from search, the YouTube window or a share: show it like a pasted one.
+  $effect(() => {
+    const pending = app.pendingUrl;
+    if (!pending) return;
+    app.pendingUrl = null;
+    url = pending;
+    probe(pending);
+  });
+
   async function pasteFromClipboard() {
     try {
       const text = (await readText())?.trim();

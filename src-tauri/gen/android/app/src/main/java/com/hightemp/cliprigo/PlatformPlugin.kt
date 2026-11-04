@@ -11,6 +11,7 @@ import androidx.core.content.FileProvider
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
+import app.tauri.plugin.JSObject
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.Plugin
 import java.io.File
@@ -30,6 +31,19 @@ class KeepAliveArgs {
 @TauriPlugin
 class PlatformPlugin(private val activity: Activity) : Plugin(activity) {
   private var askedForNotifications = false
+
+  companion object {
+    /** Text shared to the app and not yet taken by the UI. */
+    @Volatile var shared: String? = null
+  }
+
+  /** The shared text, once; the UI asks on start and whenever it is shown again. */
+  @Command
+  fun takeShared(invoke: Invoke) {
+    val text = shared
+    shared = null
+    invoke.resolve(JSObject().put("text", text))
+  }
 
   /** Other apps can't read our paths: they get a content:// URI with read access. */
   @Command

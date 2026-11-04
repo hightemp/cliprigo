@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  defaultFormat,
   duplicatesFor,
   sameFiles,
   buildFormat,
@@ -20,6 +21,8 @@ function entry(id: string, available = true): PlaylistEntry {
     duration: null,
     thumbnail: null,
     available,
+    viewCount: null,
+    live: false,
   };
 }
 
@@ -169,5 +172,44 @@ describe("sameFiles", () => {
     const found = duplicatesFor(records, v720, "/dl");
     expect(Object.keys(found).sort()).toEqual(["v", "w"]);
     expect(found.v.id).toBe(2);
+  });
+});
+
+describe("defaultFormat", () => {
+  const base = {
+    downloadDir: "/d",
+    defaultFormat: "video",
+    defaultQuality: null,
+    defaultCodec: "auto",
+    concurrency: 2,
+    filenameTemplate: "%(title)s.%(ext)s",
+    language: "system",
+    autoUpdateYtdlp: true,
+    proxy: "",
+  } as const;
+
+  it("follows the settings", () => {
+    expect(defaultFormat(base)).toEqual({
+      kind: "video",
+      maxHeight: null,
+      codec: "auto",
+    });
+    expect(
+      defaultFormat({ ...base, defaultQuality: 720, defaultCodec: "h264" }),
+    ).toEqual({ kind: "video", maxHeight: 720, codec: "h264" });
+    expect(defaultFormat({ ...base, defaultFormat: "audio_mp3" })).toEqual({
+      kind: "audio_mp3",
+    });
+    expect(defaultFormat({ ...base, defaultFormat: "audio_m4a" })).toEqual({
+      kind: "audio_m4a",
+    });
+  });
+
+  it("is best video without settings", () => {
+    expect(defaultFormat(null)).toEqual({
+      kind: "video",
+      maxHeight: null,
+      codec: "auto",
+    });
   });
 });

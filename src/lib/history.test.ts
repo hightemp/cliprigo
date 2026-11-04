@@ -11,3 +11,14 @@ describe("appendPage", () => {
     expect(appendPage([], [{ id: 1 }])).toEqual([{ id: 1 }]);
   });
 });
+
+describe("appendPage with string ids", () => {
+  it("skips search results already shown", () => {
+    const shown = [{ id: "a" }, { id: "b" }];
+    expect(appendPage(shown, [{ id: "b" }, { id: "c" }])).toEqual([
+      { id: "a" },
+      { id: "b" },
+      { id: "c" },
+    ]);
+  });
+});

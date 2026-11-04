@@ -2,32 +2,41 @@
   import { onMount } from "svelte";
   import {
     api,
+    onBrowserCrashed,
     onCloseRequested,
     onComponentUpdated,
+    onOpenUrl,
     onQueueEvent,
   } from "$lib/api";
   import { errorMessage } from "$lib/errors";
   import { applyEvent } from "$lib/queue";
-  import { app, applySettings, t, toast } from "$lib/state.svelte";
+  import {
+    app,
+    applySettings,
+    openInDownload,
+    t,
+    toast,
+    type Tab,
+  } from "$lib/state.svelte";
   import { ACTIVE_STATUSES } from "$lib/types";
   import Dialog from "$lib/components/Dialog.svelte";
   import DownloadTab from "$lib/components/DownloadTab.svelte";
   import HistoryTab from "$lib/components/HistoryTab.svelte";
   import Icon, { type IconName } from "$lib/components/Icon.svelte";
+  import SearchTab from "$lib/components/SearchTab.svelte";
   import SettingsTab from "$lib/components/SettingsTab.svelte";
   import Setup from "$lib/components/Setup.svelte";
-  import { isAndroid } from "$lib/platform";
+  import { isAndroid, sharedLink } from "$lib/platform";
 
-  type Tab = "download" | "history" | "settings";
   const TABS: { id: Tab; icon: IconName }[] = [
     { id: "download", icon: "download" },
+    { id: "search", icon: "search" },
     { id: "history", icon: "history" },
     { id: "settings", icon: "settings" },
   ];
 
   let phase = $state<"loading" | "setup" | "ready" | "error">("loading");
   let startupError = $state("");
-  let tab = $state<Tab>("download");
   let confirmClose = $state(false);
   let quitting = $state(false);
 
@@ -53,6 +62,24 @@
     }
   }
 
+  // "Share" from the YouTube app brings Cliprigo to the front with the link.
+  async function takeShared() {
+    const link = sharedLink(await api.sharedTake().catch(() => null));
+    if (link) openInDownload(link);
+  }
+
+  $effect(() => {
+    if (!isAndroid || phase !== "ready") return;
+    takeShared();
+    const onShow = () => document.visibilityState === "visible" && takeShared();
+    document.addEventListener("visibilitychange", onShow);
+    window.addEventListener("focus", onShow);
+    return () => {
+      document.removeEventListener("visibilitychange", onShow);
+      window.removeEventListener("focus", onShow);
+    };
+  });
+
   async function quit() {
     quitting = true;
     await api.appQuit();
@@ -73,6 +100,8 @@
       onComponentUpdated((u) =>
         toast(t("app.ytdlpUpdated", { version: u.version })),
       ),
+      onOpenUrl(openInDownload),
+      onBrowserCrashed(() => toast(t("youtube.crashed"), true)),
     ];
     Promise.all(unlisten).finally(start);
     return () => unlisten.forEach((p) => p.then((u) => u()));
@@ -94,9 +123,9 @@
         {#each TABS as item (item.id)}
           <button
             role="tab"
-            aria-selected={tab === item.id}
-            class:active={tab === item.id}
-            onclick={() => (tab = item.id)}
+            aria-selected={app.tab === item.id}
+            class:active={app.tab === item.id}
+            onclick={() => (app.tab = item.id)}
           >
             <Icon name={item.icon} size={16} />
             {t(`tabs.${item.id}`)}
@@ -109,15 +138,23 @@
     </header>
     <main>
       <!-- Tabs stay mounted so a half-filled link or a scroll position survives switching. -->
-      <div hidden={tab !== "download"}><DownloadTab /></div>
-      <div hidden={tab !== "history"}><HistoryTab /></div>
-      {#if tab === "settings"}<SettingsTab />{/if}
+      <div hidden={app.tab !== "download"}><DownloadTab /></div>
+      <div hidden={app.tab !== "search"}><SearchTab /></div>
+      <div hidden={app.tab !== "history"}><HistoryTab /></div>
+      {#if app.tab === "settings"}<SettingsTab />{/if}
     </main>
   </div>
 {/if}
 
 {#if app.toast}
-  <div class="toast" class:error={app.toast.error} role="status">
+  <!-- A popover is in the top layer, above an open dialog such as the player. -->
+  <div
+    class="toast"
+    class:error={app.toast.error}
+    role="status"
+    popover="manual"
+    {@attach (node) => node.showPopover?.()}
+  >
     {app.toast.text}
   </div>
 {/if}
@@ -253,6 +290,10 @@
 
   .toast {
     position: fixed;
+    inset: auto;
+    margin: 0;
+    border: none;
+    overflow: visible;
     left: 50%;
     bottom: max(20px, env(safe-area-inset-bottom));
     transform: translateX(-50%);

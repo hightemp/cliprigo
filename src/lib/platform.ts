@@ -24,3 +24,11 @@ export function isBundled(status: {
 }): boolean {
   return status.installed && status.version === "bundled";
 }
+
+/** The link in text shared to the app ("Share" in the YouTube app on Android),
+ * which may come with the video title around it. */
+export function sharedLink(text: string | null): string | null {
+  const match = text?.match(/https?:\/\/[^\s<>"']+/);
+  // Punctuation that ends a sentence is not part of the link.
+  return match ? match[0].replace(/[).,;!?]+$/, "") : null;
+}

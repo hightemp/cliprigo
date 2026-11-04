@@ -1,6 +1,7 @@
-/** Appends the next history page, skipping rows already shown: new downloads are
- * inserted at the top, so offset paging repeats rows and keyed lists then crash. */
-export function appendPage<T extends { id: number }>(
+/** Appends the next page, skipping rows already shown: new downloads are inserted
+ * at the top of the history and search results shift, so offset paging repeats rows
+ * and keyed lists then crash. */
+export function appendPage<T extends { id: number | string }>(
   shown: T[],
   page: T[],
 ): T[] {

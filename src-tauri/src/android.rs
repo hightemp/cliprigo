@@ -1,10 +1,11 @@
 //! Android-only bridge to `PlatformPlugin.kt`: opening a file needs a content:// URI
 //! from FileProvider, which tauri-plugin-opener does not create, and downloads need a
-//! foreground service to keep running in the background.
+//! foreground service to keep running in the background. Links shared to the app
+//! ("Share" in the YouTube app) arrive through it too.
 
 use std::path::Path;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::plugin::{Builder, PluginHandle, TauriPlugin};
 use tauri::{Manager, Runtime};
 
@@ -32,7 +33,20 @@ struct KeepAliveArgs {
     text: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct Shared {
+    text: Option<String>,
+}
+
 impl<R: Runtime> Platform<R> {
+    /// Text shared to the app from another one (a YouTube link), once.
+    pub fn take_shared(&self) -> AppResult<Option<String>> {
+        self.0
+            .run_mobile_plugin::<Shared>("takeShared", ())
+            .map(|s| s.text)
+            .map_err(|e| AppError::Other(e.to_string()))
+    }
+
     /// Opens the file in the app the user picks for its type.
     pub fn open(&self, path: &Path) -> AppResult<()> {
         self.0

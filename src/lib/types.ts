@@ -167,6 +167,15 @@ export interface PlaylistEntry {
   duration: number | null;
   thumbnail: string | null;
   available: boolean;
+  viewCount: number | null;
+  /** On air or scheduled: nothing to download yet. */
+  live: boolean;
+}
+
+export interface SearchPage {
+  entries: PlaylistEntry[];
+  /** The page was full: asking for the next one may find more. */
+  hasMore: boolean;
 }
 
 export interface PlaylistInfo {

@@ -203,6 +203,25 @@ pub fn probe_args(tools: &Tools, url: &str) -> Vec<OsString> {
     args
 }
 
+/// Videos per page of search results.
+pub const SEARCH_PAGE: u32 = 20;
+
+/// Lists one page (from 1) of YouTube search results, without per-video requests.
+pub fn search_args(tools: &Tools, query: &str, page: u32) -> Vec<OsString> {
+    // ytsearch has no offset: ask for everything up to this page and keep its part.
+    let end = page.max(1) * SEARCH_PAGE;
+    let mut args = common_args(tools);
+    args.extend([
+        "-J".into(),
+        "--flat-playlist".into(),
+        "--no-warnings".into(),
+        "--playlist-items".into(),
+        format!("{}:{end}", end - SEARCH_PAGE + 1).into(),
+    ]);
+    push_url(&mut args, &format!("ytsearch{end}:{query}"));
+    args
+}
+
 pub fn download_args(tools: &Tools, req: &DownloadRequest) -> Vec<OsString> {
     let mut args = common_args(tools);
     let mut push = |items: &[&str]| args.extend(items.iter().map(OsString::from));
@@ -362,6 +381,20 @@ mod tests {
             "https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLBCF2DAC6FFB574DE",
         ));
         assert!(args.contains(&"--no-playlist".to_string()));
+    }
+
+    #[test]
+    fn search_pages_through_results() {
+        let args = strings(search_args(&test_tools(), "cats in 4k", 1));
+        assert!(args.contains(&"-J".to_string()));
+        assert!(args.contains(&"--flat-playlist".to_string()));
+        assert!(has_pair(&args, "--playlist-items", "1:20"));
+        assert_eq!(&args[args.len() - 2..], ["--", "ytsearch20:cats in 4k"]);
+
+        // yt-dlp has no offset for searches: page 2 asks for 40 and keeps 21-40.
+        let args = strings(search_args(&test_tools(), "cats", 2));
+        assert!(has_pair(&args, "--playlist-items", "21:40"));
+        assert_eq!(args.last().unwrap(), "ytsearch40:cats");
     }
 
     #[test]

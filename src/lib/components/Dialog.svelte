@@ -6,11 +6,14 @@
     onclose,
     children,
     actions,
+    wide = false,
   }: {
     title: string;
     onclose: () => void;
     children: Snippet;
     actions: Snippet;
+    /** Room for a video player. */
+    wide?: boolean;
   } = $props();
 
   let dialog: HTMLDialogElement;
@@ -29,6 +32,7 @@
     onclose();
   }}
   aria-labelledby={titleId}
+  class:wide
 >
   <h2 id={titleId}>{title}</h2>
   <div class="body">{@render children()}</div>
@@ -44,6 +48,10 @@
     background: var(--surface);
     color: var(--text);
     box-shadow: var(--shadow);
+  }
+
+  dialog.wide {
+    width: min(960px, calc(100vw - 32px));
   }
 
   dialog::backdrop {

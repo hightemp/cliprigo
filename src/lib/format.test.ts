@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   formatBytes,
   formatDuration,
+  formatViews,
+  pluralCount,
   formatEta,
   formatSpeed,
   qualityLabel,
@@ -53,5 +55,29 @@ describe("qualityLabel", () => {
     expect(qualityLabel(1440)).toBe("2K (1440p)");
     expect(qualityLabel(1080)).toBe("1080p");
     expect(qualityLabel(144)).toBe("144p");
+  });
+});
+
+describe("formatViews", () => {
+  it("is compact in both languages", () => {
+    expect(formatViews(1222317, "en")).toBe("1.2M");
+    expect(formatViews(338921, "en")).toBe("339K");
+    expect(formatViews(950, "en")).toBe("950");
+    expect(formatViews(1222317, "ru")).toBe("1,2\u00a0млн");
+    expect(formatViews(338921, "ru")).toBe("339\u00a0тыс.");
+  });
+
+  it("is empty when unknown", () => {
+    expect(formatViews(null, "en")).toBe("");
+    expect(formatViews(-1, "en")).toBe("");
+  });
+});
+
+describe("pluralCount", () => {
+  it("picks the plural after a shortened number", () => {
+    // "339 тыс. просмотров", although 338 921 alone takes "просмотр".
+    expect(new Intl.PluralRules("ru").select(pluralCount(338921))).toBe("many");
+    expect(pluralCount(21)).toBe(21);
+    expect(pluralCount(999)).toBe(999);
   });
 });

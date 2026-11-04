@@ -4,6 +4,7 @@ import {
   type DownloadRecord,
   type Format,
   type PlaylistEntry,
+  type Settings,
 } from "./types";
 
 export type Mode = "video" | "audio";
@@ -50,6 +51,17 @@ export function buildFormat(
 ): Format {
   if (mode === "video") return { kind: "video", maxHeight: quality, codec };
   return audio === "mp3" ? { kind: "audio_mp3" } : { kind: "audio_m4a" };
+}
+
+/** The format "download with defaults" uses: the one chosen in Settings. */
+export function defaultFormat(settings: Settings | null): Format {
+  const kind = settings?.defaultFormat ?? "video";
+  if (kind !== "video") return { kind };
+  return {
+    kind: "video",
+    maxHeight: settings?.defaultQuality ?? null,
+    codec: codecOrAuto(settings?.defaultCodec),
+  };
 }
 
 /** Inverse of the backend's `Format::db_name`/`quality`, for "download again". */

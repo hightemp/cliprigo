@@ -1,5 +1,7 @@
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(desktop)]
+mod browser;
 mod commands;
 mod components;
 mod db;
@@ -8,6 +10,7 @@ mod error;
 mod net;
 mod net_env;
 mod panic_log;
+mod player;
 mod process;
 mod proxy_check;
 mod queue;
@@ -111,6 +114,12 @@ fn init_logging(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     net_env::bypass_proxy_for_localhost();
+    let context = tauri::generate_context!();
+    #[cfg(desktop)]
+    if let Some(start) = browser::browser_mode(std::env::args()) {
+        browser::run(context, start);
+        return;
+    }
     let builder = tauri::Builder::default();
     #[cfg(target_os = "android")]
     let builder = builder.plugin(android::init());
@@ -140,6 +149,9 @@ pub fn run() {
             let components = Arc::new(ComponentManager::new(data_dir.join("bin"), proxy.clone())?);
             app.manage(components.clone());
             app.manage(create_queue(app.handle(), db, components));
+            app.manage(player::Player::new());
+            #[cfg(desktop)]
+            app.manage(browser::Browser::default());
             app.manage(thumbs::ThumbCache::new(
                 app.path().app_cache_dir()?.join("thumbs"),
                 proxy,
@@ -163,6 +175,7 @@ pub fn run() {
             commands::history_reveal,
             commands::open_logs,
             commands::keep_alive,
+            commands::shared_take,
             commands::settings_get,
             commands::settings_set,
             commands::proxy_check,
@@ -170,6 +183,9 @@ pub fn run() {
             commands::components_install,
             commands::components_check_updates,
             commands::video_probe,
+            commands::youtube_search,
+            commands::player_url,
+            commands::youtube_open,
             commands::url_inspect,
             commands::thumbnail_cached,
             commands::diagnostics,
@@ -180,7 +196,7 @@ pub fn run() {
             commands::find_duplicates,
             commands::app_quit,
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(|app, event| match event {
             // Exit without a window close (Cmd+Q on macOS): ask first, like closing.

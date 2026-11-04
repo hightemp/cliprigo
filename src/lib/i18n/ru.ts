@@ -12,6 +12,7 @@ export const ru: Messages = {
   },
   tabs: {
     download: "Загрузка",
+    search: "Поиск",
     history: "История",
     settings: "Настройки",
   },
@@ -62,6 +63,37 @@ export const ru: Messages = {
       other: "Скачать {count} видео",
     },
     added: "Добавлено в очередь",
+  },
+  search: {
+    placeholder: "Поиск на YouTube",
+    submit: "Найти",
+    openYoutube: "Открыть YouTube",
+    hint: "Найдите ролик, чтобы посмотреть его прямо здесь, скачать или добавить в очередь.",
+    searching: "Ищем…",
+    empty: "Ничего не найдено. Попробуйте другие слова.",
+    more: "Показать ещё",
+    views: {
+      one: "{views} просмотр",
+      few: "{views} просмотра",
+      many: "{views} просмотров",
+      other: "{views} просмотра",
+    },
+    live: "В эфире",
+    watch: "Смотреть",
+    download: "Скачать…",
+    downloadHint: "Выбрать формат и скачать",
+    queue: "В очередь",
+    queueHint: "Скачать в формате по умолчанию из настроек",
+    added: "Добавлено в очередь",
+    alreadyHave:
+      "Уже скачано в формате по умолчанию. Чтобы выбрать другой, нажмите «Скачать…».",
+    downloaded: "Скачано",
+    inQueue: "В очереди",
+    openOnYoutube: "Открыть на YouTube",
+  },
+  youtube: {
+    download: "Скачать в Cliprigo",
+    crashed: "Окно YouTube неожиданно закрылось.",
   },
   playlist: {
     count: {

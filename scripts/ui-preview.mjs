@@ -168,7 +168,17 @@ function installFakeTauri(scenario) {
         return args.handler;
       }
       if (cmd === "plugin:event|unlisten") return null;
-      const response = scenario.responses[cmd];
+      let response = scenario.responses[cmd];
+      // `{ __sequence: [a, b] }` answers a, then b, then b again.
+      if (
+        response &&
+        typeof response === "object" &&
+        "__sequence" in response
+      ) {
+        const calls = window.__calls.filter((c) => c.cmd === cmd).length;
+        const list = response.__sequence;
+        response = list[Math.min(calls, list.length) - 1];
+      }
       if (response && typeof response === "object" && "__error" in response) {
         throw response.__error;
       }
@@ -193,6 +203,39 @@ const ready = (language, extra = {}) => ({
   url_inspect: { normalized: VIDEO.url, isYoutube: true, singleVideo: true },
   ...extra,
 });
+
+const SEARCH_TITLES = [
+  "Mountain sunrise timelapse in 4K",
+  "Rocky Mountains — 3 hours of relaxing scenery",
+  "How to shoot timelapses: complete guide",
+  "Northern lights over Norway 8K",
+  "Alpine lakes from a drone",
+];
+
+/** The search result row with exactly this title. */
+const resultRow = (page, title) =>
+  page.locator("li").filter({ has: page.getByText(title, { exact: true }) });
+
+/** One page of search results: `count` videos from `start`. */
+function searchPage(start, count, overrides = {}) {
+  return Array.from({ length: count }, (_, i) => {
+    const n = start + i;
+    return {
+      id: `res${String(n).padStart(8, "0")}`,
+      url: `https://www.youtube.com/watch?v=res${String(n).padStart(8, "0")}`,
+      title: SEARCH_TITLES[n % SEARCH_TITLES.length] + (n >= 5 ? ` #${n}` : ""),
+      uploader: ["Nature Frames", "4K Planet Earth", "Sky Watch"][n % 3],
+      duration: 180 + n * 97,
+      thumbnail: thumb(n * 37),
+      available: true,
+      viewCount: [1222317, 338921, 950, 15600000, 21][n % 5],
+      live: false,
+      ...overrides[n],
+    };
+  });
+}
+
+const SEARCH_RESULTS = searchPage(0, 20, { 3: { live: true, duration: null } });
 
 const scenarios = [
   {
@@ -864,6 +907,195 @@ const scenarios = [
       check.equal(picked.args.settings.filenameTemplate, example);
     },
     noFinalShot: true,
+  },
+  {
+    name: "22-search",
+    theme: "light",
+    responses: ready("ru", {
+      youtube_search: {
+        __sequence: [
+          { entries: SEARCH_RESULTS, hasMore: true },
+          { entries: searchPage(18, 4), hasMore: false },
+        ],
+      },
+      // The second result is already downloaded in the default format.
+      find_duplicates: [
+        record(9, {
+          videoId: SEARCH_RESULTS[1].id,
+          status: "completed",
+          completedAt: NOW,
+        }),
+      ],
+      queue_add: [record(10, { videoId: SEARCH_RESULTS[0].id })],
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Поиск" }).click();
+      await check.text("Найдите ролик");
+      await page.getByLabel("Поиск на YouTube").fill("timelapse mountains");
+      await page.keyboard.press("Enter");
+      const search = await check.call("youtube_search");
+      check.equal(search.args, { query: "timelapse mountains", page: 1 });
+      await check.text("1,2 млн просмотров");
+      // "339 тыс. просмотров", not "просмотр" although 338 921 ends in 1.
+      await check.text("339 тыс. просмотров");
+      await check.text("В эфире");
+      await check.text("Скачано");
+      await page.screenshot({ path: `${OUT}/22-search.png` });
+
+      // A live stream has nothing to download yet.
+      const live = resultRow(page, SEARCH_RESULTS[3].title);
+      check.equal(
+        await live.getByRole("button", { name: "В очередь" }).count(),
+        0,
+      );
+
+      const first = resultRow(page, SEARCH_RESULTS[0].title);
+      await first.getByRole("button", { name: "В очередь" }).click();
+      const add = await check.call("queue_add");
+      check.equal(add.args.items[0].videoId, SEARCH_RESULTS[0].id);
+      check.equal(add.args.items[0].format, {
+        kind: "video",
+        maxHeight: null,
+        codec: "auto",
+      });
+      await check.text("Добавлено в очередь");
+
+      // Already downloaded in the default format: not queued again.
+      const second = resultRow(page, SEARCH_RESULTS[1].title);
+      await second.getByRole("button", { name: "В очередь" }).click();
+      await check.text("Уже скачано в формате по умолчанию");
+      check.equal(await check.count("queue_add"), 1);
+
+      await page.getByRole("button", { name: "Показать ещё" }).click();
+      await page.waitForFunction(
+        () =>
+          window.__calls.filter((c) => c.cmd === "youtube_search").length === 2,
+      );
+      const more = await check.call("youtube_search");
+      check.equal(more.args.page, 2);
+      // Page 2 repeats two results; each video is listed once.
+      await check.text("#21");
+      check.equal(await page.locator("ul > li").count(), 22);
+    },
+    noFinalShot: true,
+  },
+  {
+    name: "23-search-watch",
+    theme: "dark",
+    responses: ready("en", {
+      youtube_search: { entries: SEARCH_RESULTS, hasMore: true },
+      player_url: "about:blank",
+      queue_add: [record(11, { videoId: SEARCH_RESULTS[0].id })],
+      video_probe: VIDEO,
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Search" }).click();
+      await page.getByLabel("Search YouTube").fill("timelapse");
+      await page.getByRole("button", { name: "Search", exact: true }).click();
+      await check.text(SEARCH_RESULTS[0].title);
+      const first = resultRow(page, SEARCH_RESULTS[0].title);
+      await first.getByRole("button", { name: "Watch", exact: true }).click();
+      const player = await check.call("player_url");
+      check.equal(player.args, { videoId: SEARCH_RESULTS[0].id, lang: "en" });
+      const frame = page.locator("dialog iframe");
+      await frame.waitFor();
+      check.equal(await frame.getAttribute("src"), "about:blank");
+      await page.screenshot({ path: `${OUT}/23-search-watch.png` });
+
+      // A toast shows above the open player, not hidden behind it.
+      await page
+        .locator("dialog")
+        .getByRole("button", { name: "Add to queue" })
+        .click();
+      await check.text("Added to the queue");
+      // In the top layer, shown after the dialog. (Hit testing can't tell: a modal
+      // dialog makes everything outside it inert.)
+      check.equal(
+        await page
+          .locator(".toast")
+          .evaluate((t) => t.matches(":popover-open")),
+        true,
+      );
+
+      // "Download…" opens the video in the Download tab to pick a format.
+      await page
+        .locator("dialog")
+        .getByRole("button", { name: "Download…" })
+        .click();
+      const probe = await check.call("video_probe");
+      check.equal(probe.args.url, SEARCH_RESULTS[0].url);
+      await check.text(VIDEO.title);
+      check.equal(await page.locator("dialog[open]").count(), 0);
+    },
+    noFinalShot: true,
+  },
+  {
+    name: "24-youtube-window",
+    theme: "light",
+    responses: ready("ru", {
+      youtube_search: { entries: SEARCH_RESULTS, hasMore: true },
+      video_probe: VIDEO,
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Поиск" }).click();
+      if (MOBILE) {
+        // Android has no YouTube window: links go to the YouTube app.
+        check.equal(
+          await page.getByRole("button", { name: "Открыть YouTube" }).count(),
+          0,
+        );
+        await page.getByLabel("Поиск на YouTube").fill("timelapse");
+        await page.keyboard.press("Enter");
+        await page
+          .getByRole("button", { name: "Открыть на YouTube" })
+          .first()
+          .click();
+        const open = await check.call("plugin:opener|open_url");
+        check.equal(open.args.url, SEARCH_RESULTS[0].url);
+        return;
+      }
+      await page.getByRole("button", { name: "Открыть YouTube" }).click();
+      const open = await check.call("youtube_open");
+      check.equal(open.args, {
+        url: "https://www.youtube.com/",
+        label: "Скачать в Cliprigo",
+      });
+      // The window's download button sends the open video to the Download tab.
+      await check.listening("app://open-url");
+      await page.evaluate(
+        (url) => window.__emit("app://open-url", url),
+        VIDEO.url,
+      );
+      const probe = await check.call("video_probe");
+      check.equal(probe.args.url, VIDEO.url);
+      await check.text(VIDEO.title);
+      check.equal(
+        await page
+          .getByRole("tab", { name: "Загрузка" })
+          .getAttribute("aria-selected"),
+        "true",
+      );
+    },
+    noFinalShot: true,
+  },
+  {
+    name: "25-android-share",
+    theme: "light",
+    responses: ready("ru", {
+      shared_take: `${VIDEO.title}\n${VIDEO.url}`,
+      video_probe: VIDEO,
+    }),
+    async run(page, check) {
+      if (!MOBILE) {
+        // Only Android receives shared links.
+        await check.text("Сейчас ничего не скачивается");
+        check.equal(await check.count("shared_take"), 0);
+        return;
+      }
+      const probe = await check.call("video_probe");
+      check.equal(probe.args.url, VIDEO.url);
+      await check.text(VIDEO.title);
+    },
   },
 ];
 

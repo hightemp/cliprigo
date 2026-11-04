@@ -11,7 +11,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::args::{self, DownloadRequest, Tools};
 use super::errors::{self, ErrorKind};
-use super::probe::{self, ProbeResult};
+use super::probe::{self, ProbeResult, SearchPage};
 use super::progress::{self, Snapshot, Tracker};
 use crate::error::{AppError, AppResult};
 
@@ -30,17 +30,33 @@ pub async fn probe(tools: &Tools, url: &str) -> AppResult<ProbeResult> {
     probe_with_timeout(tools, url, PROBE_TIMEOUT).await
 }
 
-/// Like [`probe`]. stderr is collected while yt-dlp runs, so a hang (e.g. YouTube
-/// unreachable without a proxy) ends with an error that shows where it got stuck.
 async fn probe_with_timeout(tools: &Tools, url: &str, timeout: Duration) -> AppResult<ProbeResult> {
+    let stdout = run_json(tools, args::probe_args(tools, url), timeout, url).await?;
+    probe::parse_probe(&String::from_utf8_lossy(&stdout))
+}
+
+/// One page (from 1) of YouTube search results.
+pub async fn search(tools: &Tools, query: &str, page: u32) -> AppResult<SearchPage> {
+    let args = args::search_args(tools, query, page);
+    let stdout = run_json(tools, args, PROBE_TIMEOUT, query).await?;
+    probe::parse_search(
+        &String::from_utf8_lossy(&stdout),
+        args::SEARCH_PAGE as usize,
+    )
+}
+
+/// Runs yt-dlp for its JSON output. stderr is collected while it runs, so a hang
+/// (e.g. YouTube unreachable without a proxy) ends with an error that shows where
+/// it got stuck. `what` names the request in logs.
+async fn run_json(
+    tools: &Tools,
+    args: Vec<OsString>,
+    timeout: Duration,
+    what: &str,
+) -> AppResult<Vec<u8>> {
     let started = std::time::Instant::now();
     let temp = RunTemp::create()?;
-    let mut child = crate::process::spawn(&mut build_command(
-        tools,
-        args::probe_args(tools, url),
-        &temp,
-    ))
-    .await?;
+    let mut child = crate::process::spawn(&mut build_command(tools, args, &temp)).await?;
     let stdout = read_all(child.stdout.take());
     let (tx, mut rx) = mpsc::unbounded_channel();
     spawn_reader(child.stderr.take(), Stream::Stderr, tx);
@@ -62,7 +78,7 @@ async fn probe_with_timeout(tools: &Tools, url: &str, timeout: Duration) -> AppR
             _ = &mut deadline => {
                 kill_tree(&mut child).await;
                 let last = stderr.iter().rev().find(|l| !l.trim().is_empty());
-                tracing::warn!(url, stderr = ?stderr, "yt-dlp timed out while probing");
+                tracing::warn!(what, stderr = ?stderr, "yt-dlp timed out");
                 return Err(AppError::Ytdlp {
                     kind: ErrorKind::Timeout,
                     message: format!(
@@ -77,16 +93,16 @@ async fn probe_with_timeout(tools: &Tools, url: &str, timeout: Duration) -> AppR
     let status = child.wait().await?;
     let stdout = stdout.await.map_err(|e| AppError::Other(e.to_string()))??;
     tracing::info!(
-        url,
+        what,
         elapsed_ms = started.elapsed().as_millis() as u64,
-        "probe finished"
+        "yt-dlp finished"
     );
     if !status.success() {
         let stderr = Vec::from(stderr).join("\n");
-        tracing::warn!(url, %stderr, "probe failed");
+        tracing::warn!(what, %stderr, "yt-dlp failed");
         return Err(errors::classify(&stderr).into());
     }
-    probe::parse_probe(&String::from_utf8_lossy(&stdout))
+    Ok(stdout)
 }
 
 /// Reads a pipe to the end in the background (probe JSON can be megabytes).
@@ -464,6 +480,20 @@ mod tests {
         assert!(args.contains(&"PYTHONUTF8=1".to_string()));
         // Progress must arrive line by line, not in blocks (seen on Windows).
         assert!(args.contains(&"PYTHONUNBUFFERED=1".to_string()));
+    }
+
+    #[tokio::test]
+    async fn search_asks_ytsearch_and_parses_results() {
+        let dir = tempfile::tempdir().unwrap();
+        let fixture = dir.path().join("search.json");
+        std::fs::write(&fixture, include_str!("../../tests/fixtures/search.json")).unwrap();
+        let tools = fake_tools(dir.path(), &format!("cat '{}'", fixture.display()));
+
+        let found = search(&tools, "timelapse mountains 4k", 1).await.unwrap();
+        assert_eq!(found.entries.len(), 3);
+        let args = recorded_args(dir.path());
+        let dash = args.iter().position(|a| a == "--").unwrap();
+        assert_eq!(args[dash + 1], "ytsearch20:timelapse mountains 4k");
     }
 
     /// On Android yt-dlp is a zipapp started by the bundled Python, which needs its
@@ -876,6 +906,30 @@ mod live_tests {
 
     fn video_id(url: &str) -> &str {
         url.rsplit("v=").next().unwrap()
+    }
+
+    #[tokio::test]
+    #[ignore = "network"]
+    async fn live_search_pages() {
+        let tools = tools().await;
+        let Some(first) = live("search page 1", || search(&tools, "rick astley", 1)).await else {
+            return;
+        };
+        assert!(first.has_more);
+        let first = first.entries;
+        assert!(first.len() >= 15, "{}", first.len());
+        assert!(first.iter().all(|e| crate::player::is_video_id(&e.id)));
+        assert!(first.iter().any(|e| e.view_count.is_some()));
+        let Some(second) = live("search page 2", || search(&tools, "rick astley", 2)).await else {
+            return;
+        };
+        let second = second.entries;
+        assert!(!second.is_empty());
+        // Mostly new videos: the pages follow each other.
+        let fresh = second
+            .iter()
+            .filter(|e| !first.iter().any(|f| f.id == e.id));
+        assert!(fresh.count() >= second.len() / 2);
     }
 
     #[tokio::test]

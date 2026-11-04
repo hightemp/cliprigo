@@ -1,14 +1,21 @@
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { api } from "./api";
 import { errorMessage } from "./errors";
 import { errorReport } from "./report";
 import type { Lang } from "./format";
 import { resolveLanguage, translate, type Params } from "./i18n";
+import { isAndroid } from "./platform";
 import type { QueueEntry, Settings } from "./types";
 
 /** App-wide reactive state shared by the tabs. */
+export type Tab = "download" | "search" | "history" | "settings";
+
 export const app = $state({
   lang: "en" as Lang,
+  tab: "download" as Tab,
+  /** A link for the Download tab to open (from search, the YouTube window or a share). */
+  pendingUrl: null as string | null,
   settings: null as Settings | null,
   queue: [] as QueueEntry[],
   /** Bumped when a download finishes, so the history reloads. */
@@ -49,5 +56,21 @@ export async function copyDetails(err: unknown, action?: string) {
     toast(t("errors.copied"));
   } catch (e) {
     toastError(e);
+  }
+}
+
+/** Shows a link in the Download tab, ready to pick a format. */
+export function openInDownload(url: string) {
+  app.pendingUrl = url;
+  app.tab = "download";
+}
+
+/** Opens a YouTube page: in the app's YouTube window, or the YouTube app on Android. */
+export async function openYoutube(url: string) {
+  try {
+    if (isAndroid) await openUrl(url);
+    else await api.youtubeOpen(url, t("youtube.download"));
+  } catch (err) {
+    toastError(err);
   }
 }

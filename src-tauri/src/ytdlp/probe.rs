@@ -44,6 +44,9 @@ pub struct PlaylistEntry {
     pub thumbnail: Option<String>,
     /// `false` for private/deleted entries that can't be downloaded.
     pub available: bool,
+    pub view_count: Option<u64>,
+    /// A stream on air or scheduled: there is no finished file to download yet.
+    pub live: bool,
 }
 
 /// Parses `yt-dlp -J --flat-playlist` output.
@@ -89,14 +92,41 @@ pub fn parse_probe(json: &str) -> AppResult<ProbeResult> {
     }))
 }
 
+/// One page of search results.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchPage {
+    pub entries: Vec<PlaylistEntry>,
+    pub has_more: bool,
+}
+
+/// Parses `yt-dlp -J --flat-playlist ytsearchN:…` output for a page of `page_size`:
+/// the videos found. Channels found too are left out, so a full page may list fewer.
+pub fn parse_search(json: &str, page_size: usize) -> AppResult<SearchPage> {
+    let found = serde_json::from_str::<Value>(json)?
+        .get("entries")
+        .and_then(Value::as_array)
+        .map_or(0, Vec::len);
+    match parse_probe(json)? {
+        ProbeResult::Playlist(p) => Ok(SearchPage {
+            entries: p.entries,
+            has_more: found >= page_size,
+        }),
+        ProbeResult::Video(_) => Err(bad("expected search results")),
+    }
+}
+
 /// Titles yt-dlp uses for hidden items in flat playlists.
 const UNAVAILABLE_TITLES: &[&str] = &["[Private video]", "[Deleted video]"];
 const UNAVAILABLE_AVAILABILITY: &[&str] =
     &["private", "needs_auth", "subscriber_only", "premium_only"];
 
 fn entry(obj: &Map<String, Value>) -> Option<PlaylistEntry> {
-    // Nested playlists (e.g. channel tabs) are not videos.
-    if obj.get("_type").and_then(Value::as_str) == Some("playlist") {
+    // Nested playlists (e.g. channel tabs) and links to channels or playlists (in
+    // search results) are not videos.
+    if obj.get("_type").and_then(Value::as_str) == Some("playlist")
+        || obj.get("ie_key").and_then(Value::as_str) == Some("YoutubeTab")
+    {
         return None;
     }
     let id = str_field(obj, "id")?;
@@ -113,6 +143,11 @@ fn entry(obj: &Map<String, Value>) -> Option<PlaylistEntry> {
         duration: duration(obj),
         thumbnail: last_thumbnail(obj),
         available,
+        view_count: obj.get("view_count").and_then(Value::as_u64),
+        live: matches!(
+            obj.get("live_status").and_then(Value::as_str),
+            Some("is_live" | "is_upcoming")
+        ),
         id,
         title,
     })
@@ -177,6 +212,7 @@ mod tests {
     const VIDEO: &str = include_str!("../../tests/fixtures/probe_video.json");
     const PLAYLIST: &str = include_str!("../../tests/fixtures/probe_playlist.json");
     const CHANNEL_ROOT: &str = include_str!("../../tests/fixtures/probe_channel_root.json");
+    const SEARCH: &str = include_str!("../../tests/fixtures/search.json");
 
     #[test]
     fn video() {
@@ -258,6 +294,63 @@ mod tests {
         };
         assert_eq!(p.entries[0].url, "https://www.youtube.com/watch?v=abc");
         assert_eq!(p.url, "");
+    }
+
+    #[test]
+    fn search_results() {
+        let found = parse_search(SEARCH, 20).unwrap();
+        assert_eq!(found.entries.len(), 3);
+        // Fewer results than asked for: that was the last page.
+        assert!(!found.has_more);
+        assert!(parse_search(SEARCH, 3).unwrap().has_more);
+
+        let first = &found.entries[0];
+        assert_eq!(first.id, "FwNqnodc9eg");
+        assert_eq!(first.uploader.as_deref(), Some("4K Planet Earth"));
+        assert_eq!(first.view_count, Some(338921));
+        assert_eq!(first.url, "https://www.youtube.com/watch?v=FwNqnodc9eg");
+        assert!(
+            first
+                .thumbnail
+                .as_deref()
+                .unwrap()
+                .starts_with("https://i.ytimg.com/")
+        );
+        // A finished stream is a normal video.
+        assert!(!first.live);
+        assert!(first.available);
+    }
+
+    #[test]
+    fn live_streams_are_marked() {
+        let found = parse_search(
+            r#"{"_type":"playlist","id":"q","entries":[
+                {"id":"a","title":"On air","live_status":"is_live"},
+                {"id":"b","title":"Soon","live_status":"is_upcoming"},
+                {"id":"c","title":"Video"}]}"#,
+            20,
+        )
+        .unwrap();
+        let live: Vec<_> = found.entries.iter().map(|e| e.live).collect();
+        assert_eq!(live, [true, true, false]);
+        assert_eq!(found.entries[2].view_count, None);
+    }
+
+    /// Searches also find channels and playlists; they are not videos to download.
+    #[test]
+    fn channels_are_not_videos() {
+        let found = parse_search(
+            r#"{"_type":"playlist","id":"q","entries":[
+                {"_type":"url","ie_key":"YoutubeTab","id":"UCuAXFkgsw1L7xaCfnd5JJOw",
+                 "url":"https://www.youtube.com/channel/UCuAXFkgsw1L7xaCfnd5JJOw","title":"Rick Astley"},
+                {"_type":"url","ie_key":"Youtube","id":"dQw4w9WgXcQ","title":"Video"}]}"#,
+            2,
+        )
+        .unwrap();
+        let ids: Vec<_> = found.entries.iter().map(|e| e.id.as_str()).collect();
+        assert_eq!(ids, ["dQw4w9WgXcQ"]);
+        // The page was full before the channel was dropped.
+        assert!(found.has_more);
     }
 
     #[test]

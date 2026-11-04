@@ -8,6 +8,7 @@ export const en = {
   },
   tabs: {
     download: "Download",
+    search: "Search",
     history: "History",
     settings: "Settings",
   },
@@ -58,6 +59,35 @@ export const en = {
       other: "Download {count} videos",
     },
     added: "Added to the queue",
+  },
+  search: {
+    placeholder: "Search YouTube",
+    submit: "Search",
+    openYoutube: "Open YouTube",
+    hint: "Find a video to watch it right here, download it or add it to the queue.",
+    searching: "Searching…",
+    empty: "Nothing found. Try other words.",
+    more: "Show more",
+    views: {
+      one: "{views} view",
+      other: "{views} views",
+    },
+    live: "Live",
+    watch: "Watch",
+    download: "Download…",
+    downloadHint: "Choose the format and download",
+    queue: "Add to queue",
+    queueHint: "Download in the default format from Settings",
+    added: "Added to the queue",
+    alreadyHave:
+      "Already downloaded in the default format. Use “Download…” to pick another.",
+    downloaded: "Downloaded",
+    inQueue: "In the queue",
+    openOnYoutube: "Open on YouTube",
+  },
+  youtube: {
+    download: "Download in Cliprigo",
+    crashed: "The YouTube window closed unexpectedly.",
   },
   playlist: {
     count: {

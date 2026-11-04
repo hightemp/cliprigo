@@ -1,5 +1,6 @@
 package com.hightemp.cliprigo
 
+import android.content.Intent
 import android.os.Bundle
 import android.os.Environment
 import android.system.Os
@@ -11,6 +12,18 @@ class MainActivity : TauriActivity() {
     exportPaths()
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+    keepShared(intent)
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    keepShared(intent)
+  }
+
+  /** A link shared from another app; the UI takes it when it shows, see PlatformPlugin. */
+  private fun keepShared(intent: Intent?) {
+    if (intent?.action != Intent.ACTION_SEND) return
+    PlatformPlugin.shared = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
   }
 
   /**

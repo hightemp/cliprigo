@@ -1,0 +1,87 @@
+{
+  "_type": "playlist",
+  "id": "timelapse mountains 4k",
+  "title": "timelapse mountains 4k",
+  "webpage_url": "ytsearch20:timelapse mountains 4k",
+  "extractor": "youtube:search",
+  "entries": [
+    {
+      "_type": "url",
+      "id": "FwNqnodc9eg",
+      "title": "Rocky Mountains (4K UHD) Amazing Beautiful Nature Scenery - Travel Nature | 4K Planet Earth",
+      "url": "https://www.youtube.com/watch?v=FwNqnodc9eg",
+      "channel": "4K Planet Earth",
+      "channel_id": "UCzxUDuGP0B1btTvdOWOgnBw",
+      "uploader": "4K Planet Earth",
+      "duration": 42899.0,
+      "view_count": 338921,
+      "live_status": "was_live",
+      "availability": null,
+      "thumbnails": [
+        {
+          "url": "https://i.ytimg.com/vi/FwNqnodc9eg/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBh_3ptZvG1pM4nAvzyJr043r4N9Q",
+          "height": 202,
+          "width": 360
+        },
+        {
+          "url": "https://i.ytimg.com/vi/FwNqnodc9eg/hq720.jpg?sqp=-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBiu4j4AAuc1vaqoqXXXnATADl9Uw",
+          "height": 404,
+          "width": 720
+        }
+      ],
+      "ie_key": "Youtube"
+    },
+    {
+      "_type": "url",
+      "id": "zFiqZMTmolY",
+      "title": "Stunning Views of Mountains 4K with Relaxation Music",
+      "url": "https://www.youtube.com/watch?v=zFiqZMTmolY",
+      "channel": "PRIMAL EARTH ",
+      "channel_id": "UCb57aRZr3KsykS_wNsD5Ptw",
+      "uploader": "PRIMAL EARTH ",
+      "duration": 11003.0,
+      "view_count": 1222317,
+      "live_status": null,
+      "availability": null,
+      "thumbnails": [
+        {
+          "url": "https://i.ytimg.com/vi/zFiqZMTmolY/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCSIEuLFDQDxiHoZA8lr-H0t3iMJQ",
+          "height": 202,
+          "width": 360
+        },
+        {
+          "url": "https://i.ytimg.com/vi/zFiqZMTmolY/hq720.jpg?sqp=-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDZ3PZgJ4PjKQiUALgaD8HmzlND7A",
+          "height": 404,
+          "width": 720
+        }
+      ],
+      "ie_key": "Youtube"
+    },
+    {
+      "_type": "url",
+      "id": "BTMjD7_evjE",
+      "title": "The Alps 4K - Scenic Relaxation Film With Calming Music",
+      "url": "https://www.youtube.com/watch?v=BTMjD7_evjE",
+      "channel": "Scenic Relaxation",
+      "channel_id": "UC95bEkaIgwhxSjSsdMFXYGg",
+      "uploader": "Scenic Relaxation",
+      "duration": 3648.0,
+      "view_count": 8488398,
+      "live_status": null,
+      "availability": null,
+      "thumbnails": [
+        {
+          "url": "https://i.ytimg.com/vi/BTMjD7_evjE/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLC3RIc_2NKRr1Tq197rE0xt_C3YlQ",
+          "height": 202,
+          "width": 360
+        },
+        {
+          "url": "https://i.ytimg.com/vi/BTMjD7_evjE/hq720.jpg?sqp=-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLD0CazQ8JXwA02yzVS4MNW2a_GiZQ",
+          "height": 404,
+          "width": 720
+        }
+      ],
+      "ie_key": "Youtube"
+    }
+  ]
+}

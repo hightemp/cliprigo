@@ -12,6 +12,7 @@ import type {
   QueueEntry,
   QueueEvent,
   QueueItemInput,
+  SearchPage,
   Settings,
   UpdateInfo,
   UrlInfo,
@@ -27,6 +28,8 @@ export const api = {
   historyReveal: (id: number) => invoke<void>("history_reveal", { id }),
   openLogs: () => invoke<void>("open_logs"),
   keepAlive: (text: string | null) => invoke<void>("keep_alive", { text }),
+  /** Android: text shared to the app, once. */
+  sharedTake: () => invoke<string | null>("shared_take"),
   diagnostics: () => invoke<string>("diagnostics"),
 
   settingsGet: () => invoke<Settings>("settings_get"),
@@ -43,6 +46,13 @@ export const api = {
   urlInspect: (url: string) => invoke<UrlInfo>("url_inspect", { url }),
   thumbnailCached: (url: string) => invoke<string>("thumbnail_cached", { url }),
   videoProbe: (url: string) => invoke<ProbeResult>("video_probe", { url }),
+  youtubeSearch: (query: string, page: number) =>
+    invoke<SearchPage>("youtube_search", { query, page }),
+  playerUrl: (videoId: string, lang: string) =>
+    invoke<string>("player_url", { videoId, lang }),
+  /** Desktop only: the YouTube window; `label` is its download button. */
+  youtubeOpen: (url: string, label: string) =>
+    invoke<void>("youtube_open", { url, label }),
 
   queueAdd: (items: QueueItemInput[]) =>
     invoke<DownloadRecord[]>("queue_add", { items }),
@@ -79,3 +89,12 @@ export const onComponentUpdated = (
 
 export const onCloseRequested = (handler: () => void): Promise<UnlistenFn> =>
   listen("app://close-requested", () => handler());
+
+/** A link sent by the YouTube window's download button. */
+export const onOpenUrl = (
+  handler: (url: string) => void,
+): Promise<UnlistenFn> =>
+  listen<string>("app://open-url", (e) => handler(e.payload));
+
+export const onBrowserCrashed = (handler: () => void): Promise<UnlistenFn> =>
+  listen("app://browser-crashed", () => handler());

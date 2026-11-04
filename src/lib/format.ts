@@ -49,6 +49,21 @@ export function formatDuration(seconds: number | null | undefined): string {
 
 export const formatEta = formatDuration;
 
+/** Count that picks the plural of a word after `formatViews`: once shortened, the
+ * word follows the abbreviation ("339 тыс. просмотров"), not the full number. */
+export function pluralCount(count: number): number {
+  return count >= 1000 ? 1000 : count;
+}
+
+/** View count in short form: "1.2M", "339K" / "1,2 млн", "339 тыс.". */
+export function formatViews(
+  count: number | null | undefined,
+  lang: Lang,
+): string {
+  if (count == null || !Number.isFinite(count) || count < 0) return "";
+  return new Intl.NumberFormat(lang, { notation: "compact" }).format(count);
+}
+
 export function formatDate(unixSeconds: number, lang: Lang): string {
   return new Intl.DateTimeFormat(lang, {
     dateStyle: "medium",
