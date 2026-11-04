@@ -1228,6 +1228,43 @@ const scenarios = [
         { timeout: 2000 },
       );
 
+      // The open list stays under its button while the page scrolls.
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await codec.click();
+      const scrolled = await page.evaluate(async () => {
+        const before = window.scrollY;
+        window.scrollBy(0, 150);
+        await new Promise((r) =>
+          requestAnimationFrame(() => setTimeout(r, 50)),
+        );
+        const button = document.querySelector("#default-codec");
+        const list = document.getElementById(
+          button.getAttribute("aria-controls"),
+        );
+        const b = button.getBoundingClientRect();
+        const l = list.getBoundingClientRect();
+        return {
+          moved: window.scrollY - before,
+          attached:
+            Math.abs(l.top - (b.bottom + 4)) < 2 ||
+            Math.abs(l.bottom - (b.top - 4)) < 2,
+          gap: [
+            Math.round(b.top),
+            Math.round(b.bottom),
+            Math.round(l.top),
+            Math.round(l.bottom),
+          ],
+        };
+      });
+      if (scrolled.moved < 50)
+        throw new Error(`the page did not scroll: ${scrolled.moved}`);
+      check.equal(
+        scrolled.attached,
+        true,
+        `list follows its button ${scrolled.gap}`,
+      );
+      await page.keyboard.press("Escape");
+
       await page.getByRole("tab", { name: "History" }).click();
       const search = page.getByLabel("Search by title or channel");
       await search.fill("sun");

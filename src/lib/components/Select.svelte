@@ -33,7 +33,15 @@
     if (open) return;
     active = Math.max(selected, 0);
     open = true;
-    // Under the button, or above it when the window ends first.
+    place();
+    list.showPopover?.();
+    // The list may be wider than the button: keep it inside the window.
+    placeLeft();
+    reveal(active);
+  }
+
+  /** Under the button, or above it when the window ends first. */
+  function place() {
     const r = button.getBoundingClientRect();
     const below = innerHeight - r.bottom;
     list.style.minWidth = `${r.width}px`;
@@ -46,11 +54,40 @@
       list.style.top = `${r.bottom + 4}px`;
       list.style.maxHeight = `${Math.min(280, below - 12)}px`;
     }
-    list.showPopover?.();
-    // The list may be wider than the button: keep it inside the window.
-    list.style.left = `${Math.max(8, Math.min(r.left, innerWidth - list.offsetWidth - 8))}px`;
-    reveal(active);
   }
+
+  function placeLeft() {
+    const r = button.getBoundingClientRect();
+    list.style.left = `${Math.max(8, Math.min(r.left, innerWidth - list.offsetWidth - 8))}px`;
+  }
+
+  // The list is fixed in the window: it follows the button when the page (or a
+  // dialog) scrolls or the window resizes. Scrolling the list itself moves nothing.
+  $effect(() => {
+    if (!open) return;
+    let frame = 0;
+    const follow = (e: Event) => {
+      if (e.target === list) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        // Scrolled out of sight: close, as a native select does.
+        const r = button.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > innerHeight) {
+          hide();
+          return;
+        }
+        place();
+        placeLeft();
+      });
+    };
+    addEventListener("scroll", follow, { capture: true, passive: true });
+    addEventListener("resize", follow);
+    return () => {
+      cancelAnimationFrame(frame);
+      removeEventListener("scroll", follow, { capture: true });
+      removeEventListener("resize", follow);
+    };
+  });
 
   /** Scrolls the list (only the list, not the page) to show option `i`. */
   function reveal(i: number) {
