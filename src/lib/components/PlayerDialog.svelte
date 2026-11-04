@@ -5,6 +5,7 @@
   import type { PlaylistEntry } from "$lib/types";
   import Dialog from "./Dialog.svelte";
   import Icon from "./Icon.svelte";
+  import SubtitlesDialog from "./SubtitlesDialog.svelte";
 
   let {
     entry,
@@ -24,6 +25,7 @@
   // The player page comes from the app's local server (see src-tauri/src/player.rs):
   // YouTube refuses to play embeds on the app's own tauri:// pages.
   let src = $state<string | null>(null);
+  let subtitles = $state(false);
   $effect(() => {
     const id = entry.id;
     let stale = false;
@@ -63,6 +65,10 @@
       <Icon name="star" size={16} />
       {isFavorite(entry.id) ? t("favorites.saved") : t("favorites.save")}
     </button>
+    <button class="btn" onclick={() => (subtitles = true)}>
+      <Icon name="captions" size={16} />
+      {t("subtitles.button")}
+    </button>
     <span class="spacer"></span>
     <button class="btn" onclick={onclose}>{t("common.close")}</button>
     {#if !entry.live}
@@ -76,6 +82,14 @@
     {/if}
   {/snippet}
 </Dialog>
+
+{#if subtitles}
+  <SubtitlesDialog
+    url={entry.url}
+    title={entry.title}
+    onclose={() => (subtitles = false)}
+  />
+{/if}
 
 <style>
   .frame {

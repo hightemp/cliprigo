@@ -76,7 +76,8 @@ input,
 textarea,
 code,
 .note,
-.error {
+.error,
+.selectable {
   -webkit-user-select: text;
   user-select: text;
 }

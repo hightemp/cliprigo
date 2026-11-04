@@ -96,6 +96,7 @@ const VIDEO = {
   duration: 754,
   thumbnail: thumb(20),
   heights: [2160, 1440, 1080, 720, 480, 360, 240, 144],
+  subtitles: [],
   // 2025-06-12 00:00 UTC.
   published: 1749686400,
 };
@@ -278,6 +279,39 @@ const pastSearch = (id, query, ago, filters = {}, resultCount = 20) => ({
   searchedAt: NOW - ago,
   resultCount,
 });
+
+const subsTrack = (lang, kind, name) => ({
+  lang,
+  name,
+  kind,
+  url: `https://www.youtube.com/api/timedtext?v=vid100&lang=${lang}&fmt=json3`,
+});
+
+const SUB_TRACKS = [
+  subsTrack("en", "manual", "English"),
+  subsTrack("de-DE", "manual", "German (Germany)"),
+  subsTrack("en-orig", "auto", "English (Original)"),
+  subsTrack("ru", "translated", "Russian"),
+];
+
+const SUB_PHRASES = [
+  "[Music]",
+  "The sun comes up over the ridge",
+  "Clouds roll down into the valley",
+  "This shot took six hours to film",
+  "We set the camera every ten seconds",
+  "Here the light turns orange",
+  "Shadows move across the snow",
+  "The lake is still in the morning",
+  "Wind picks up after noon",
+  "Night falls and the stars appear",
+];
+
+const SUB_CUES = SUB_PHRASES.map((text, i) => ({
+  startMs: 1000 + i * 4200,
+  endMs: 1000 + i * 4200 + 4000,
+  text,
+}));
 
 const SEARCH_HISTORY = [
   pastSearch(3, "горы таймлапс", 600, { features: ["4k"], sort: "views" }),
@@ -1535,6 +1569,105 @@ const scenarios = [
         .click();
       await resultRow(page, SEARCH_RESULTS[0].title).waitFor();
       check.equal(await dialog.locator("li.card:visible").count(), 8);
+    },
+  },
+  {
+    name: "36-subtitles",
+    theme: "light",
+    responses: ready("ru", {
+      youtube_search: { entries: SEARCH_RESULTS, hasMore: true },
+      video_probe: { ...VIDEO, subtitles: SUB_TRACKS },
+      subtitles_fetch: SUB_CUES,
+      "plugin:dialog|save": "/home/user/Downloads/sunrise.en.srt",
+      subtitles_save: "/home/user/Downloads/sunrise.en.srt",
+    }),
+    async run(page, check) {
+      await page.getByRole("tab", { name: "Поиск" }).click();
+      await page.getByLabel("Поиск на YouTube").fill("timelapse");
+      await page.keyboard.press("Enter");
+      await resultRow(page, SEARCH_RESULTS[0].title)
+        .getByRole("button", { name: "Субтитры" })
+        .click();
+      const dialog = page.getByRole("dialog", { name: "Субтитры" });
+      check.equal(
+        (await check.call("video_probe")).args.url,
+        SEARCH_RESULTS[0].url,
+      );
+      // No Russian by the author: what is spoken, by the author.
+      const language = dialog.getByRole("combobox", { name: "Язык" });
+      check.equal((await language.textContent()).trim(), "English");
+      check.equal(
+        (await check.call("subtitles_fetch")).args.url,
+        SUB_TRACKS[0].url,
+      );
+      await dialog.getByText(SUB_PHRASES[3]).waitFor();
+
+      await dialog.getByRole("checkbox", { name: "Показывать время" }).check();
+      await check.text("0:13");
+
+      await dialog.getByLabel("Найти в субтитрах").fill("SHADOWS");
+      await check.text("1 совпадение");
+      check.equal(await dialog.locator("mark").count(), 1, "highlighted");
+      await page.screenshot({ path: `${OUT}/36-subtitles.png` });
+      await dialog.getByLabel("Найти в субтитрах").fill("");
+
+      await dialog.getByRole("button", { name: "Копировать всё" }).click();
+      const all = await check.call("plugin:clipboard-manager|write_text");
+      const copied = JSON.stringify(all.args);
+      for (const needle of ["[0:01] [Music]", SUB_PHRASES[9]]) {
+        if (!copied.includes(needle))
+          throw new Error(`copy all lacks ${needle}: ${copied}`);
+      }
+
+      // Copy what is selected with the mouse.
+      const selected = dialog.getByRole("button", {
+        name: "Копировать выделенное",
+      });
+      check.equal(await selected.isDisabled(), true, "nothing selected");
+      await dialog.getByText(SUB_PHRASES[5]).selectText();
+      await selected.click();
+      const part = await check.call("plugin:clipboard-manager|write_text");
+      if (!JSON.stringify(part.args).includes(SUB_PHRASES[5]))
+        throw new Error(`selection not copied: ${JSON.stringify(part.args)}`);
+
+      await check.choose(language, { label: "Russian · автоперевод" });
+      check.equal(
+        (await check.call("subtitles_fetch")).args.url,
+        SUB_TRACKS[3].url,
+      );
+
+      await check.choose(
+        dialog.getByRole("combobox", { name: "Формат файла" }),
+        {
+          value: "srt",
+        },
+      );
+      await dialog.getByRole("button", { name: "Сохранить в файл" }).click();
+      const saved = await check.call("subtitles_save");
+      // Android has no save dialog: the file goes to the download folder.
+      check.equal(
+        saved.args.path,
+        MOBILE ? null : "/home/user/Downloads/sunrise.en.srt",
+      );
+      if (!saved.args.text.startsWith("1\n00:00:01,000 --> 00:00:05,000\n"))
+        throw new Error(`not SRT: ${saved.args.text.slice(0, 60)}`);
+      check.equal(saved.args.name, `${SEARCH_RESULTS[0].title}.ru.srt`);
+      await check.text("Сохранено");
+    },
+    noFinalShot: true,
+  },
+  {
+    name: "37-subtitles-none",
+    responses: ready("en", {
+      video_probe: { ...VIDEO, subtitles: [] },
+    }),
+    async run(page, check) {
+      await page.fill("input[type=url]", VIDEO.url);
+      await page.keyboard.press("Enter");
+      await check.text(VIDEO.title);
+      await page.getByRole("button", { name: "Subtitles" }).click();
+      await check.text("This video has no subtitles.");
+      check.equal(await check.count("subtitles_fetch"), 0);
     },
   },
   {

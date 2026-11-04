@@ -4,6 +4,7 @@
   import type { PlaylistEntry } from "$lib/types";
   import { isFavorite, toggleFavorite, videoMeta } from "$lib/videos.svelte";
   import Icon from "./Icon.svelte";
+  import SubtitlesDialog from "./SubtitlesDialog.svelte";
   import Thumb from "./Thumb.svelte";
 
   /** A found or saved video with its actions. */
@@ -23,6 +24,7 @@
   } = $props();
 
   const saved = $derived(isFavorite(entry.id));
+  let subtitles = $state(false);
 </script>
 
 <li class="card">
@@ -86,6 +88,14 @@
     </button>
     <button
       class="icon-btn"
+      aria-label={t("subtitles.button")}
+      data-tip={t("subtitles.button")}
+      onclick={() => (subtitles = true)}
+    >
+      <Icon name="captions" size={16} />
+    </button>
+    <button
+      class="icon-btn"
       data-tip={t("search.openOnYoutube")}
       aria-label={t("search.openOnYoutube")}
       onclick={() => openInBrowser(entry.url)}
@@ -93,6 +103,13 @@
       <Icon name="external" size={16} />
     </button>
   </div>
+  {#if subtitles}
+    <SubtitlesDialog
+      url={entry.url}
+      title={entry.title}
+      onclose={() => (subtitles = false)}
+    />
+  {/if}
 </li>
 
 <style>

@@ -161,6 +161,24 @@ export interface VideoInfo {
   heights: number[];
   /** Unix seconds. */
   published: number | null;
+  subtitles: SubtitleTrack[];
+}
+
+/** See src-tauri/src/ytdlp/subtitles.rs. */
+export interface SubtitleTrack {
+  /** As yt-dlp's --sub-langs takes it: "en", "pt-BR", "en-orig". */
+  lang: string;
+  name: string;
+  /** By the author, recognized speech, or its translation by YouTube. */
+  kind: "manual" | "auto" | "translated";
+  url: string;
+}
+
+/** One phrase, in milliseconds from the start. */
+export interface Cue {
+  startMs: number;
+  endMs: number;
+  text: string;
 }
 
 export interface PlaylistEntry {

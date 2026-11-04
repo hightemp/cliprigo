@@ -173,6 +173,44 @@ pub async fn video_probe(
     ytdlp::runner::probe(&tools, &ytdlp::url::normalize(&url)).await
 }
 
+/// The phrases of a subtitle track (its `url` from the video's tracks).
+#[tauri::command]
+pub async fn subtitles_fetch(
+    proxy: State<'_, crate::net::ProxySetting>,
+    url: String,
+) -> AppResult<Vec<ytdlp::subtitles::Cue>> {
+    if !ytdlp::subtitles::is_allowed(&url) {
+        return Err(AppError::Other(format!("not a subtitles address: {url}")));
+    }
+    let http = crate::components::fetch::Http::new(proxy.get().as_deref())?;
+    ytdlp::subtitles::parse_json3(&http.get_text(&url).await?)
+}
+
+/// Writes subtitles to `path` (picked in a save dialog) or, without one (Android),
+/// as `name` in the download folder. Returns where they went.
+#[tauri::command]
+pub fn subtitles_save(
+    db: State<'_, Db>,
+    name: String,
+    text: String,
+    path: Option<String>,
+) -> AppResult<String> {
+    let path = match path {
+        Some(p) => {
+            let p = std::path::PathBuf::from(p);
+            ytdlp::subtitles::check_extension(&p)?;
+            p
+        }
+        None => {
+            let dir = std::path::PathBuf::from(db.load_settings()?.download_dir);
+            std::fs::create_dir_all(&dir)?;
+            ytdlp::subtitles::save_path(&dir, &name)?
+        }
+    };
+    std::fs::write(&path, text)?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 /// One page (from 1) of YouTube search results.
 #[tauri::command]
 pub async fn youtube_search(

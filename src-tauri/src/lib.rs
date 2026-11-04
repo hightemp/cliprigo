@@ -169,6 +169,8 @@ pub fn run() {
             commands::favorites_list,
             commands::favorites_add,
             commands::favorites_remove,
+            commands::subtitles_fetch,
+            commands::subtitles_save,
             commands::search_history_list,
             commands::search_history_results,
             commands::search_history_remove,

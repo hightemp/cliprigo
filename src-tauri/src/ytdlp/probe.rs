@@ -23,6 +23,7 @@ pub struct VideoInfo {
     pub heights: Vec<u32>,
     /// When it was published (Unix seconds).
     pub published: Option<i64>,
+    pub subtitles: Vec<super::subtitles::SubtitleTrack>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -89,6 +90,7 @@ pub fn parse_probe(json: &str) -> AppResult<ProbeResult> {
     Ok(ProbeResult::Video(VideoInfo {
         heights: heights(&obj),
         published: published(&obj),
+        subtitles: super::subtitles::tracks(&obj),
         duration: duration(&obj),
         thumbnail: str_field(&obj, "thumbnail").or_else(|| last_thumbnail(&obj)),
         id,
@@ -405,6 +407,23 @@ mod tests {
             panic!("expected video");
         };
         assert_eq!(v.published, Some(1256428800));
+    }
+
+    #[test]
+    fn video_subtitles() {
+        let ProbeResult::Video(v) = parse_probe(VIDEO).unwrap() else {
+            panic!("expected video");
+        };
+        assert!(v.subtitles.is_empty());
+        let ProbeResult::Video(v) = parse_probe(
+            r#"{"id":"v","title":"t","subtitles":{"en":[{"ext":"json3","name":"English",
+                "url":"https://www.youtube.com/api/timedtext?v=v&lang=en&fmt=json3"}]}}"#,
+        )
+        .unwrap() else {
+            panic!("expected video");
+        };
+        assert_eq!(v.subtitles.len(), 1);
+        assert_eq!(v.subtitles[0].lang, "en");
     }
 
     /// Searches also find channels and playlists; they are not videos to download.

@@ -917,6 +917,39 @@ mod live_tests {
         url.rsplit("v=").next().unwrap()
     }
 
+    /// Tracks come with the video; their text is fetched straight from YouTube.
+    #[tokio::test]
+    #[ignore = "network"]
+    async fn live_subtitles() {
+        use crate::ytdlp::subtitles::{TrackKind, parse_json3};
+
+        let tools = tools().await;
+        let Some(ProbeResult::Video(video)) = live("probe", || probe(&tools, VIDEOS[0])).await
+        else {
+            return;
+        };
+        let manual = video
+            .subtitles
+            .iter()
+            .find(|t| t.kind == TrackKind::Manual && t.lang == "en")
+            .expect("English subtitles");
+        assert!(video.subtitles.iter().any(|t| t.kind == TrackKind::Auto));
+        assert!(
+            video
+                .subtitles
+                .iter()
+                .any(|t| t.kind == TrackKind::Translated)
+        );
+        let http =
+            crate::components::fetch::Http::new(crate::net::test_proxy().get().as_deref()).unwrap();
+        let Some(text) = live("subtitles", || http.get_text(&manual.url)).await else {
+            return;
+        };
+        let cues = parse_json3(&text).unwrap();
+        assert!(cues.len() > 20, "{}", cues.len());
+        assert!(cues.iter().all(|c| !c.text.trim().is_empty()));
+    }
+
     #[tokio::test]
     #[ignore = "network"]
     async fn live_search_pages() {

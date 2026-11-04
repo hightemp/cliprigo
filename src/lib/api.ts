@@ -4,6 +4,7 @@ import type {
   ComponentName,
   ComponentProgress,
   ComponentStatus,
+  Cue,
   DownloadRecord,
   Favorite,
   FavoriteInput,
@@ -64,6 +65,10 @@ export const api = {
   searchHistoryRemove: (id: number) =>
     invoke<void>("search_history_remove", { id }),
   searchHistoryClear: () => invoke<void>("search_history_clear"),
+  subtitlesFetch: (url: string) => invoke<Cue[]>("subtitles_fetch", { url }),
+  /** Without `path` (Android) the file goes to the download folder. */
+  subtitlesSave: (name: string, text: string, path: string | null) =>
+    invoke<string>("subtitles_save", { name, text, path }),
   playerUrl: (videoId: string, lang: string) =>
     invoke<string>("player_url", { videoId, lang }),
 

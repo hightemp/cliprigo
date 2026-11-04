@@ -25,6 +25,7 @@
   import Dialog from "./Dialog.svelte";
   import FormatPicker from "./FormatPicker.svelte";
   import Icon from "./Icon.svelte";
+  import SubtitlesDialog from "./SubtitlesDialog.svelte";
   import QueueList from "./QueueList.svelte";
   import Thumb from "./Thumb.svelte";
 
@@ -51,6 +52,7 @@
 
   let duplicateOf = $state<DownloadRecord | null>(null);
   let adding = $state(false);
+  let subtitlesOpen = $state(false);
   /** Ignores results of an older probe when a newer link was pasted meanwhile. */
   let probeToken = 0;
 
@@ -305,6 +307,10 @@
             {#if duplicateBadge(result.id)}
               <span class="badge warning">{duplicateBadge(result.id)}</span>
             {/if}
+            <button class="btn subs-btn" onclick={() => (subtitlesOpen = true)}>
+              <Icon name="captions" size={16} />
+              {t("subtitles.button")}
+            </button>
           </div>
         </div>
       {:else}
@@ -393,6 +399,15 @@
   <QueueList />
 </div>
 
+{#if subtitlesOpen && result?.type === "video"}
+  <SubtitlesDialog
+    url={result.url}
+    title={result.title}
+    tracks={result.subtitles}
+    onclose={() => (subtitlesOpen = false)}
+  />
+{/if}
+
 {#if duplicateOf}
   {@const dup = duplicateOf}
   <Dialog title={t("duplicate.title")} onclose={() => (duplicateOf = null)}>
@@ -423,6 +438,11 @@
 {/if}
 
 <style>
+  .subs-btn {
+    justify-self: start;
+    margin-top: 4px;
+  }
+
   .tab {
     display: grid;
     gap: 16px;

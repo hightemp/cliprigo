@@ -7,11 +7,11 @@
   let { children } = $props();
 
   // A desktop app, not a web page: no browser menu ("Back", "Reload") outside
-  // text fields, and no reloading, which would lose the state of the window.
+  // text fields and selectable text, and no reloading, which would lose the state of the window.
   onMount(() => {
     const menu = (e: MouseEvent) => {
       const field = (e.target as Element | null)?.closest?.(
-        "input, textarea, [contenteditable]",
+        "input, textarea, [contenteditable], .selectable",
       );
       if (!field) e.preventDefault();
     };
