@@ -17,6 +17,7 @@ pub struct Favorite {
     pub duration: Option<i64>,
     pub thumbnail: Option<String>,
     pub view_count: Option<i64>,
+    pub published: Option<i64>,
     pub added_at: i64,
 }
 
@@ -30,10 +31,12 @@ pub struct NewFavorite {
     pub duration: Option<i64>,
     pub thumbnail: Option<String>,
     pub view_count: Option<i64>,
+    #[serde(default)]
+    pub published: Option<i64>,
 }
 
 const COLUMNS: &str =
-    "video_id, url, title, uploader, duration, thumbnail_url, view_count, added_at";
+    "video_id, url, title, uploader, duration, thumbnail_url, view_count, added_at, published";
 
 fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Favorite> {
     Ok(Favorite {
@@ -45,6 +48,7 @@ fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Favorite> {
         thumbnail: row.get(5)?,
         view_count: row.get(6)?,
         added_at: row.get(7)?,
+        published: row.get(8)?,
     })
 }
 
@@ -54,10 +58,11 @@ impl Db {
         let conn = self.conn();
         conn.execute(
             "INSERT INTO favorites (video_id, url, title, uploader, duration, thumbnail_url, \
-             view_count, added_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) \
+             view_count, added_at, published) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) \
              ON CONFLICT(video_id) DO UPDATE SET url = excluded.url, title = excluded.title, \
              uploader = excluded.uploader, duration = excluded.duration, \
-             thumbnail_url = excluded.thumbnail_url, view_count = excluded.view_count",
+             thumbnail_url = excluded.thumbnail_url, view_count = excluded.view_count, \
+             published = coalesce(excluded.published, published)",
             rusqlite::params![
                 f.id,
                 f.url,
@@ -67,6 +72,7 @@ impl Db {
                 f.thumbnail,
                 f.view_count,
                 now_unix(),
+                f.published,
             ],
         )?;
         Ok(conn.query_row(
@@ -108,6 +114,7 @@ mod tests {
             duration: Some(213),
             thumbnail: Some("https://i.ytimg.com/vi/x/hq.jpg".into()),
             view_count: Some(1_000),
+            published: Some(1_762_300_800),
         }
     }
 
@@ -117,6 +124,7 @@ mod tests {
         let first = db.add_favorite(&video("aaaaaaaaaaa", "First")).unwrap();
         assert_eq!(first.title, "First");
         assert_eq!(first.duration, Some(213));
+        assert_eq!(first.published, Some(1_762_300_800));
         assert!(first.added_at > 0);
         db.add_favorite(&video("bbbbbbbbbbb", "Second")).unwrap();
         let ids: Vec<_> = db

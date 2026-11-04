@@ -21,6 +21,8 @@ pub struct VideoInfo {
     pub thumbnail: Option<String>,
     /// Distinct video heights, highest first, for the quality picker.
     pub heights: Vec<u32>,
+    /// When it was published (Unix seconds).
+    pub published: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -47,6 +49,9 @@ pub struct PlaylistEntry {
     pub view_count: Option<u64>,
     /// A stream on air or scheduled: there is no finished file to download yet.
     pub live: bool,
+    /// When it was published (Unix seconds). In lists only approximate: YouTube
+    /// shows "3 days ago" there.
+    pub published: Option<i64>,
 }
 
 /// Parses `yt-dlp -J --flat-playlist` output.
@@ -83,6 +88,7 @@ pub fn parse_probe(json: &str) -> AppResult<ProbeResult> {
 
     Ok(ProbeResult::Video(VideoInfo {
         heights: heights(&obj),
+        published: published(&obj),
         duration: duration(&obj),
         thumbnail: str_field(&obj, "thumbnail").or_else(|| last_thumbnail(&obj)),
         id,
@@ -148,6 +154,7 @@ fn entry(obj: &Map<String, Value>) -> Option<PlaylistEntry> {
             obj.get("live_status").and_then(Value::as_str),
             Some("is_live" | "is_upcoming")
         ),
+        published: published(obj),
         id,
         title,
     })
@@ -170,6 +177,39 @@ fn duration(obj: &Map<String, Value>) -> Option<i64> {
         .and_then(Value::as_f64)
         .filter(|d| d.is_finite() && *d >= 0.0)
         .map(|d| d.round() as i64)
+}
+
+/// The exact time if known, else the day (`upload_date`, YYYYMMDD) at midnight UTC.
+fn published(obj: &Map<String, Value>) -> Option<i64> {
+    ["timestamp", "release_timestamp"]
+        .iter()
+        .find_map(|k| obj.get(*k).and_then(Value::as_f64))
+        .filter(|t| t.is_finite())
+        .map(|t| t as i64)
+        .or_else(|| str_field(obj, "upload_date").and_then(|d| day_start(&d)))
+}
+
+/// Unix time of 00:00 UTC on a YYYYMMDD day.
+fn day_start(date: &str) -> Option<i64> {
+    if date.len() != 8 || !date.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let (y, m, d): (i64, i64, i64) = (
+        date[..4].parse().ok()?,
+        date[4..6].parse().ok()?,
+        date[6..].parse().ok()?,
+    );
+    if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
+        return None;
+    }
+    // Days from 1970-01-01 in the proleptic Gregorian calendar (H. Hinnant's
+    // days_from_civil).
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let doy = (153 * ((m + 9) % 12) + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    Some((era * 146_097 + doe - 719_468) * 86_400)
 }
 
 /// yt-dlp sorts thumbnails by preference, best last.
@@ -334,6 +374,37 @@ mod tests {
         let live: Vec<_> = found.entries.iter().map(|e| e.live).collect();
         assert_eq!(live, [true, true, false]);
         assert_eq!(found.entries[2].view_count, None);
+    }
+
+    #[test]
+    fn publication_dates() {
+        // Lists only say "3 days ago"; with approximate_date yt-dlp turns that into
+        // a timestamp. A full date wins when there is one.
+        let found = parse_search(
+            r#"{"_type":"playlist","id":"q","entries":[
+                {"id":"a","title":"A","timestamp":1762300800},
+                {"id":"b","title":"B","upload_date":"20251105"},
+                {"id":"c","title":"C","upload_date":"bad"},
+                {"id":"d","title":"D"}]}"#,
+            20,
+        )
+        .unwrap();
+        let published: Vec<_> = found.entries.iter().map(|e| e.published).collect();
+        assert_eq!(published, [Some(1762300800), Some(1762300800), None, None]);
+
+        let ProbeResult::Video(v) = parse_probe(
+            r#"{"id":"v","title":"t","upload_date":"20091025","timestamp":1256453863}"#,
+        )
+        .unwrap() else {
+            panic!("expected video");
+        };
+        assert_eq!(v.published, Some(1256453863));
+        let ProbeResult::Video(v) =
+            parse_probe(r#"{"id":"v","title":"t","upload_date":"20091025"}"#).unwrap()
+        else {
+            panic!("expected video");
+        };
+        assert_eq!(v.published, Some(1256428800));
     }
 
     /// Searches also find channels and playlists; they are not videos to download.

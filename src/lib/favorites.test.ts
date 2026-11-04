@@ -14,6 +14,7 @@ const saved = (
   duration: 213,
   thumbnail: null,
   viewCount: 5,
+  published: 1_762_300_800,
   addedAt: 1,
 });
 
@@ -28,6 +29,7 @@ describe("favorites", () => {
       duration: 213,
       thumbnail: null,
       viewCount: 5,
+      published: 1_762_300_800,
       available: true,
       live: false,
     });
@@ -46,6 +48,7 @@ describe("favorites", () => {
       duration: 213,
       thumbnail: null,
       viewCount: 5,
+      published: 1_762_300_800,
     });
   });
 

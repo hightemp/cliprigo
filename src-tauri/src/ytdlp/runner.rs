@@ -931,6 +931,14 @@ mod live_tests {
         assert!(first.len() >= 15, "{}", first.len());
         assert!(first.iter().all(|e| crate::player::is_video_id(&e.id)));
         assert!(first.iter().any(|e| e.view_count.is_some()));
+        // Approximate ("3 years ago"), but in the past and after YouTube began.
+        let now = crate::db::now_unix();
+        let dated: Vec<_> = first.iter().filter_map(|e| e.published).collect();
+        assert!(dated.len() >= first.len() / 2, "{dated:?}");
+        assert!(
+            dated.iter().all(|&t| (1_104_537_600..=now).contains(&t)),
+            "{dated:?}"
+        );
         let Some(second) = live("search page 2", || search(&tools, "rick astley", &plain, 2)).await
         else {
             return;

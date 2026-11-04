@@ -71,6 +71,41 @@ export function formatDate(unixSeconds: number, lang: Lang): string {
   }).format(new Date(unixSeconds * 1000));
 }
 
+/** The largest unit first, so 400 days is "1 year", not "57 weeks". */
+const AGO_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ["year", 365 * 86_400],
+  ["month", 30 * 86_400],
+  ["week", 7 * 86_400],
+  ["day", 86_400],
+  ["hour", 3_600],
+  ["minute", 60],
+];
+
+/** "3 days ago" (or "in 2 days" for a scheduled stream), as YouTube shows dates in
+ * lists; those dates are only that precise anyway. */
+export function formatAgo(
+  unixSeconds: number,
+  nowSeconds: number,
+  lang: Lang,
+): string {
+  const diff = unixSeconds - nowSeconds;
+  const [unit, size] =
+    AGO_UNITS.find(([, size]) => Math.abs(diff) >= size) ?? AGO_UNITS[5];
+  const amount = Math.max(1, Math.floor(Math.abs(diff) / size));
+  return new Intl.RelativeTimeFormat(lang, { numeric: "always" }).format(
+    diff < 0 ? -amount : amount,
+    unit,
+  );
+}
+
+/** The day a video came out. YouTube dates are days in UTC. */
+export function formatDay(unixSeconds: number, lang: Lang): string {
+  return new Intl.DateTimeFormat(lang, {
+    dateStyle: "medium",
+    timeZone: "UTC",
+  }).format(new Date(unixSeconds * 1000));
+}
+
 const NAMED_HEIGHTS: Record<number, string> = {
   4320: "8K",
   2160: "4K",

@@ -77,6 +77,11 @@ const MIGRATIONS: &[&str] = &[
         PRIMARY KEY (search_id, video_id)
     );
     "#,
+    // 6: when videos were published (Unix seconds, approximate in lists)
+    r#"
+    ALTER TABLE favorites ADD COLUMN published INTEGER;
+    ALTER TABLE search_results ADD COLUMN published INTEGER;
+    "#,
 ];
 
 pub fn run(conn: &mut Connection) -> AppResult<()> {

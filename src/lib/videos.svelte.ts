@@ -1,7 +1,7 @@
 // Actions on videos found in search or saved to Favorites.
 import { api } from "./api";
 import { favoriteInput } from "./favorites";
-import { formatDuration, formatViews, pluralCount } from "./format";
+import { formatAgo, formatDuration, formatViews, pluralCount } from "./format";
 import { defaultFormat, duplicatesFor } from "./selection";
 import { app, t, toast, toastError } from "./state.svelte";
 import {
@@ -19,7 +19,11 @@ export function videoMeta(entry: PlaylistEntry): string {
           count: pluralCount(entry.viewCount),
           views: formatViews(entry.viewCount, app.lang),
         });
-  return [entry.uploader, views, formatDuration(entry.duration)]
+  const ago =
+    entry.published === null
+      ? ""
+      : formatAgo(entry.published, Date.now() / 1000, app.lang);
+  return [entry.uploader, views, ago, formatDuration(entry.duration)]
     .filter(Boolean)
     .join(" · ");
 }

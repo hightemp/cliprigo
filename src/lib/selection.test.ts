@@ -23,6 +23,7 @@ function entry(id: string, available = true): PlaylistEntry {
     available,
     viewCount: null,
     live: false,
+    published: null,
   };
 }
 

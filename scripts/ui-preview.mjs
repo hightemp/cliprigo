@@ -96,6 +96,8 @@ const VIDEO = {
   duration: 754,
   thumbnail: thumb(20),
   heights: [2160, 1440, 1080, 720, 480, 360, 240, 144],
+  // 2025-06-12 00:00 UTC.
+  published: 1749686400,
 };
 
 const PLAYLIST = {
@@ -207,6 +209,9 @@ const ready = (language, extra = {}) => ({
   ...extra,
 });
 
+const HOUR = 3600;
+const DAY = 24 * HOUR;
+
 const SEARCH_TITLES = [
   "Mountain sunrise timelapse in 4K",
   "Rocky Mountains — 3 hours of relaxing scenery",
@@ -224,6 +229,7 @@ const favorite = (entry, ago) => ({
   duration: entry.duration,
   thumbnail: entry.thumbnail,
   viewCount: entry.viewCount,
+  published: entry.published,
   addedAt: NOW - ago,
 });
 
@@ -247,6 +253,10 @@ function searchPage(start, count, overrides = {}) {
       available: true,
       viewCount: [1222317, 338921, 950, 15600000, 21][n % 5],
       live: false,
+      // As yt-dlp's approximate dates: "3 days ago", "2 weeks ago"…
+      published:
+        Math.floor(Date.now() / 1000) -
+        [3 * DAY, 15 * DAY, 2 * HOUR, 400 * DAY, 70 * DAY][n % 5],
       ...overrides[n],
     };
   });
@@ -319,6 +329,7 @@ const scenarios = [
       await page.fill("input[type=url]", VIDEO.url);
       await page.keyboard.press("Enter");
       await check.text(VIDEO.title);
+      await check.text("Nature Frames · 12 июн. 2025 г. · 12:34");
       const quality = page.getByLabel("Качество");
       check.equal((await quality.textContent()).trim(), "Лучшее доступное");
       await check.choose(quality, { label: "1080p" });
@@ -1296,6 +1307,7 @@ const scenarios = [
       await check.choose(page.getByLabel("Length"), { value: "medium" });
       await page.getByRole("checkbox", { name: "4K" }).check();
       await check.text("1.2M views");
+      await check.text("Nature Frames · 1.2M views · 3 days ago · 3:00");
       // Let the checkbox finish its animation before the screenshot.
       await page.waitForTimeout(300);
     },
@@ -1311,6 +1323,8 @@ const scenarios = [
     async run(page, check) {
       await page.getByRole("tab", { name: "Favorites" }).click();
       await check.text("Queue all");
+      // Saved with the date it was found with.
+      await check.text("Nature Frames · 1.2M views · 3 days ago");
       check.equal(await page.locator("li.card:visible").count(), 4);
     },
   },

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatAgo,
   formatBytes,
+  formatDay,
   formatDuration,
   formatViews,
   pluralCount,
@@ -79,5 +81,29 @@ describe("pluralCount", () => {
     expect(new Intl.PluralRules("ru").select(pluralCount(338921))).toBe("many");
     expect(pluralCount(21)).toBe(21);
     expect(pluralCount(999)).toBe(999);
+  });
+});
+
+describe("publication dates", () => {
+  const now = 1_762_300_800;
+  const day = 86_400;
+
+  it("in lists say how long ago, like YouTube", () => {
+    expect(formatAgo(now - 3 * day, now, "en")).toBe("3 days ago");
+    expect(formatAgo(now - 3 * day, now, "ru")).toBe("3 дня назад");
+    expect(formatAgo(now - 5 * 3600, now, "en")).toBe("5 hours ago");
+    expect(formatAgo(now - 20, now, "en")).toBe("1 minute ago");
+    expect(formatAgo(now - 15 * day, now, "en")).toBe("2 weeks ago");
+    expect(formatAgo(now - 61 * day, now, "en")).toBe("2 months ago");
+    expect(formatAgo(now - 365 * day, now, "en")).toBe("1 year ago");
+    expect(formatAgo(now - 3 * 365 * day, now, "ru")).toBe("3 года назад");
+    // A scheduled stream.
+    expect(formatAgo(now + 2 * day, now, "en")).toBe("in 2 days");
+  });
+
+  it("of a single video are the day it came out", () => {
+    // 2009-10-25 00:00 UTC: the same day in any time zone.
+    expect(formatDay(1_256_428_800, "en")).toBe("Oct 25, 2009");
+    expect(formatDay(1_256_428_800, "ru")).toBe("25 окт. 2009 г.");
   });
 });

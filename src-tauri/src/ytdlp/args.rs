@@ -195,6 +195,9 @@ pub fn probe_args(tools: &Tools, url: &str) -> Vec<OsString> {
         "-J".into(),
         "--flat-playlist".into(),
         "--no-warnings".into(),
+        // Lists only say "3 days ago"; yt-dlp turns that into a date with this.
+        "--extractor-args".into(),
+        "youtubetab:approximate_date".into(),
     ]);
     if super::url::is_single_video(url) {
         args.push("--no-playlist".into());
@@ -220,6 +223,9 @@ pub fn search_args(
         "-J".into(),
         "--flat-playlist".into(),
         "--no-warnings".into(),
+        // Lists only say "3 days ago"; yt-dlp turns that into a date with this.
+        "--extractor-args".into(),
+        "youtubetab:approximate_date".into(),
         "--playlist-items".into(),
         format!("{}:{end}", end - SEARCH_PAGE + 1).into(),
     ]);
@@ -373,6 +379,11 @@ mod tests {
         assert!(args.contains(&"-J".to_string()));
         assert!(args.contains(&"--flat-playlist".to_string()));
         assert!(!args.contains(&"--no-playlist".to_string()));
+        assert!(has_pair(
+            &args,
+            "--extractor-args",
+            "youtubetab:approximate_date"
+        ));
         assert_eq!(
             &args[args.len() - 2..],
             [
@@ -404,6 +415,13 @@ mod tests {
                 "https://www.youtube.com/results?search_query=cats+in+4k&sp=EgIQAQ%3D%3D"
             ]
         );
+
+        // Lists only have "3 days ago"; this turns it into a date.
+        assert!(has_pair(
+            &args,
+            "--extractor-args",
+            "youtubetab:approximate_date"
+        ));
 
         // Results have no offset: page 2 lists them up to 40 and keeps 21-40.
         let args = strings(search_args(&test_tools(), "cats", &filters, 2));

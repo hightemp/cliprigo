@@ -2,7 +2,7 @@
   import { readText } from "@tauri-apps/plugin-clipboard-manager";
   import { api } from "$lib/api";
   import { errorMessage } from "$lib/errors";
-  import { formatDuration } from "$lib/format";
+  import { formatDay, formatDuration } from "$lib/format";
   import {
     buildFormat,
     codecOrAuto,
@@ -293,7 +293,12 @@
           <div class="meta">
             <h3>{result.title}</h3>
             <div class="muted">
-              {[result.uploader, formatDuration(result.duration)]
+              {[
+                result.uploader,
+                result.published !== null &&
+                  formatDay(result.published, app.lang),
+                formatDuration(result.duration),
+              ]
                 .filter(Boolean)
                 .join(" · ")}
             </div>

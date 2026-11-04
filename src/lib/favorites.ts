@@ -10,6 +10,7 @@ export function asEntry(f: Favorite): PlaylistEntry {
     duration: f.duration,
     thumbnail: f.thumbnail,
     viewCount: f.viewCount,
+    published: f.published,
     available: true,
     live: false,
   };
@@ -24,6 +25,7 @@ export function favoriteInput(e: PlaylistEntry): FavoriteInput {
     duration: e.duration,
     thumbnail: e.thumbnail,
     viewCount: e.viewCount,
+    published: e.published,
   };
 }
 

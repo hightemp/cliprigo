@@ -33,7 +33,7 @@ pub fn query_key(query: &str) -> String {
 }
 
 const RESULT_COLUMNS: &str =
-    "video_id, url, title, uploader, duration, thumbnail_url, view_count, live";
+    "video_id, url, title, uploader, duration, thumbnail_url, view_count, live, published";
 
 fn result_from_row(row: &rusqlite::Row) -> rusqlite::Result<PlaylistEntry> {
     Ok(PlaylistEntry {
@@ -46,6 +46,7 @@ fn result_from_row(row: &rusqlite::Row) -> rusqlite::Result<PlaylistEntry> {
         available: true,
         view_count: row.get::<_, Option<i64>>(6)?.map(|v| v.max(0) as u64),
         live: row.get(7)?,
+        published: row.get(8)?,
     })
 }
 
@@ -104,7 +105,7 @@ impl Db {
         {
             let mut insert = tx.prepare(&format!(
                 "INSERT OR IGNORE INTO search_results (search_id, position, {RESULT_COLUMNS}) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)"
             ))?;
             for (i, e) in entries.iter().enumerate() {
                 insert.execute(rusqlite::params![
@@ -118,6 +119,7 @@ impl Db {
                     e.thumbnail,
                     e.view_count.map(|v| v.min(i64::MAX as u64) as i64),
                     e.live,
+                    e.published,
                 ])?;
             }
         }
@@ -187,6 +189,7 @@ mod tests {
             available: true,
             view_count: Some(1_000),
             live: n == 2,
+            published: (n != 1).then_some(1_762_300_800 - n as i64),
         }
     }
 

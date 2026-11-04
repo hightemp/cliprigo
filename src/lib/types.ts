@@ -159,6 +159,8 @@ export interface VideoInfo {
   duration: number | null;
   thumbnail: string | null;
   heights: number[];
+  /** Unix seconds. */
+  published: number | null;
 }
 
 export interface PlaylistEntry {
@@ -172,6 +174,8 @@ export interface PlaylistEntry {
   viewCount: number | null;
   /** On air or scheduled: nothing to download yet. */
   live: boolean;
+  /** Unix seconds; in lists only approximate ("3 days ago"). */
+  published: number | null;
 }
 
 /** A video saved to Favorites; see src-tauri/src/db/favorites.rs. */
@@ -183,6 +187,7 @@ export interface Favorite {
   duration: number | null;
   thumbnail: string | null;
   viewCount: number | null;
+  published: number | null;
   addedAt: number;
 }
 
