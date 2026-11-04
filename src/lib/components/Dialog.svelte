@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { t } from "$lib/state.svelte";
+  import Icon from "./Icon.svelte";
 
   let {
     title,
@@ -34,7 +36,18 @@
   aria-labelledby={titleId}
   class:wide
 >
-  <h2 id={titleId}>{title}</h2>
+  <header>
+    <h2 id={titleId}>{title}</h2>
+    <button
+      type="button"
+      class="icon-btn close"
+      aria-label={t("common.closeWindow")}
+      data-tip={t("common.close")}
+      onclick={onclose}
+    >
+      <Icon name="close" size={16} />
+    </button>
+  </header>
   <div class="body">{@render children()}</div>
   <div class="actions">{@render actions()}</div>
 </dialog>
@@ -58,9 +71,25 @@
     background: rgb(0 0 0 / 0.4);
   }
 
-  h2 {
+  header {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
     margin: 0 0 8px;
+  }
+
+  h2 {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding-top: 4px;
     font-size: 16px;
+  }
+
+  /* Pulled into the corner, so it doesn't push the title down. */
+  .close {
+    flex: none;
+    margin: -6px -8px 0 0;
   }
 
   .body {

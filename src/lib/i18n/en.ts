@@ -16,6 +16,7 @@ export const en = {
   common: {
     cancel: "Cancel",
     close: "Close",
+    closeWindow: "Close the window",
     clear: "Clear",
     retry: "Try again",
     loading: "Loading…",

@@ -1514,7 +1514,9 @@ const scenarios = [
       await dialog.getByRole("button", { name: "Очистить историю" }).click();
       await check.call("search_history_clear");
       await check.text("Здесь появятся ваши поиски");
-      await dialog.getByRole("button", { name: "Закрыть" }).click();
+      await dialog
+        .getByRole("button", { name: "Закрыть", exact: true })
+        .click();
       check.equal(
         await page.getByRole("list", { name: "Недавние запросы" }).count(),
         0,
@@ -1653,6 +1655,10 @@ const scenarios = [
         throw new Error(`not SRT: ${saved.args.text.slice(0, 60)}`);
       check.equal(saved.args.name, `${SEARCH_RESULTS[0].title}.ru.srt`);
       await check.text("Сохранено");
+
+      // Every window has a cross at the top.
+      await dialog.getByRole("button", { name: "Закрыть окно" }).click();
+      check.equal(await dialog.count(), 0, "closed by the cross");
     },
     noFinalShot: true,
   },

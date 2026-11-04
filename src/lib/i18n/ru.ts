@@ -20,6 +20,7 @@ export const ru: Messages = {
   common: {
     cancel: "Отмена",
     close: "Закрыть",
+    closeWindow: "Закрыть окно",
     clear: "Очистить",
     retry: "Повторить",
     loading: "Загрузка…",
